@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 from src.data_sources.tvremix_client import (
+    fetch_tvremix_data,
     fetch_financials,
     fetch_news,
     fetch_ohlcv,
@@ -13,6 +14,7 @@ from src.data_sources.tvremix_client import (
 )
 
 OUTPUT_PATH = Path("reports/generated/tvremix_NVDA_test.json")
+PARSED_OUTPUT_PATH = Path("reports/generated/tvremix_NVDA_test_parsed.json")
 
 
 def _sanitize(obj):
@@ -56,6 +58,25 @@ def main() -> int:
     OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     OUTPUT_PATH.write_text(json.dumps(output, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"Salida guardada en: {OUTPUT_PATH}")
+
+    parsed_output: dict[str, object] = {"symbol": symbol}
+    try:
+        parsed = fetch_tvremix_data("NVDA")
+        parsed_output = {
+            "symbol": parsed.symbol,
+            "source": parsed.source,
+            "missing_fields": parsed.missing_fields,
+            "warnings": parsed.warnings,
+            "history_rows": int(len(parsed.history)),
+            "market_data_summary": _sanitize(parsed.market_data),
+        }
+    except Exception as exc:
+        parsed_output = {"symbol": symbol, "status": "error", "error": str(exc)}
+
+    PARSED_OUTPUT_PATH.write_text(
+        json.dumps(parsed_output, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    print(f"Salida parseada guardada en: {PARSED_OUTPUT_PATH}")
     return 0
 
 
