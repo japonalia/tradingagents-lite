@@ -207,6 +207,46 @@ def fetch_technicals(symbol: str, interval: str = "1D") -> tuple[dict[str, Any],
     return technicals, warnings
 
 
+def fetch_quotes_batch(symbols: list[str]) -> tuple[dict[str, dict[str, Any]], list[str]]:
+    normalized = [normalize_tv_symbol(symbol) for symbol in symbols if str(symbol).strip()]
+    if not normalized:
+        return {}, ["No se recibieron símbolos para get_quotes_batch."]
+
+    raw = _extract_result_payload(call_tool("get_quotes_batch", {"symbols": normalized}))
+    parsed, warnings = parse_mcp_text_payload(raw)
+
+    records: dict[str, dict[str, Any]] = {}
+    if isinstance(parsed, list):
+        for item in parsed:
+            if isinstance(item, dict):
+                key = str(item.get("symbol") or item.get("ticker") or "").upper()
+                if key:
+                    records[key] = item
+    elif isinstance(parsed, dict):
+        for key, value in parsed.items():
+            if isinstance(value, dict):
+                records[str(key).upper()] = value
+
+    if not records:
+        warnings.append("get_quotes_batch sin payload parseable; se usará get_quote por símbolo.")
+
+    return records, warnings
+
+
+def fetch_technicals_batch(symbols: list[str], interval: str = "1D") -> tuple[dict[str, dict[str, Any]], list[str]]:
+    warnings: list[str] = []
+    records: dict[str, dict[str, Any]] = {}
+    for symbol in symbols:
+        tv_symbol = normalize_tv_symbol(symbol)
+        try:
+            technicals, tech_warnings = fetch_technicals(tv_symbol, interval=interval)
+            records[tv_symbol.upper()] = technicals
+            warnings.extend(tech_warnings)
+        except Exception as exc:
+            warnings.append(f"get_technicals falló para {tv_symbol}: {exc}")
+    return records, warnings
+
+
 def fetch_financials(symbol: str) -> tuple[dict[str, Any], list[str]]:
     raw = _extract_result_payload(call_tool("get_financials", {"symbol": symbol}))
     parsed, parse_warnings = parse_mcp_text_payload(raw)
