@@ -1,0 +1,9 @@
+{
+  "requested_symbols": [
+    "NASDAQ:NVDA",
+    "NASDAQ:MSFT",
+    "NASDAQ:AAPL"
+  ],
+  "status": "error",
+  "error": "TVRemix MCP no está configurado. Define TVREMIX_MCP_URL y TVREMIX_API_KEY."
+}

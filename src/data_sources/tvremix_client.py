@@ -214,23 +214,89 @@ def fetch_quotes_batch(symbols: list[str]) -> tuple[dict[str, dict[str, Any]], l
 
     raw = _extract_result_payload(call_tool("get_quotes_batch", {"symbols": normalized}))
     parsed, warnings = parse_mcp_text_payload(raw)
-
-    records: dict[str, dict[str, Any]] = {}
-    if isinstance(parsed, list):
-        for item in parsed:
-            if isinstance(item, dict):
-                key = str(item.get("symbol") or item.get("ticker") or "").upper()
-                if key:
-                    records[key] = item
-    elif isinstance(parsed, dict):
-        for key, value in parsed.items():
-            if isinstance(value, dict):
-                records[str(key).upper()] = value
+    records = normalize_quote_batch_payload(parsed, normalized)
 
     if not records:
         warnings.append("get_quotes_batch sin payload parseable; se usará get_quote por símbolo.")
 
     return records, warnings
+
+
+def normalize_quote_batch_payload(
+    payload: Any, requested_symbols: list[str]
+) -> dict[str, dict[str, Any]]:
+    def _core(value: Any) -> dict[str, Any]:
+        if not isinstance(value, dict):
+            return {}
+        if isinstance(value.get("data"), dict):
+            return value["data"]
+        return value
+
+    def _quote_subset(value: Any) -> dict[str, Any]:
+        quote = _core(value)
+        if not quote:
+            return {}
+        return {
+            "price": quote.get("price") or quote.get("last_price") or quote.get("close"),
+            "change_percent": quote.get("change_percent"),
+            "volume": quote.get("volume"),
+            "market_cap": quote.get("market_cap"),
+            "pe_ratio": quote.get("pe_ratio"),
+        }
+
+    requested_tv = {normalize_tv_symbol(symbol).upper() for symbol in requested_symbols}
+    requested_short = {symbol.split(":", 1)[-1].upper() for symbol in requested_tv}
+    alias_to_tv = {
+        symbol.split(":", 1)[-1].upper(): symbol
+        for symbol in requested_tv
+    }
+
+    by_symbol: dict[str, dict[str, Any]] = {}
+
+    def _bind(symbol_key: str, quote_value: Any) -> None:
+        normalized_key = str(symbol_key).upper().strip()
+        if not normalized_key:
+            return
+        mapped = normalized_key if ":" in normalized_key else alias_to_tv.get(normalized_key)
+        if not mapped and normalized_key in requested_tv:
+            mapped = normalized_key
+        if not mapped:
+            return
+        by_symbol[mapped] = _quote_subset(quote_value)
+
+    if isinstance(payload, dict):
+        source = payload.get("data")
+    else:
+        source = payload
+
+    if isinstance(source, list):
+        for item in source:
+            if isinstance(item, dict):
+                key = (
+                    item.get("symbol")
+                    or item.get("ticker")
+                    or item.get("name")
+                    or item.get("tv_symbol")
+                )
+                _bind(str(key or ""), item)
+    elif isinstance(source, dict):
+        for key, value in source.items():
+            if isinstance(value, dict):
+                _bind(str(key), value)
+
+    records: dict[str, dict[str, Any]] = {}
+    for tv_symbol in requested_tv:
+        short = tv_symbol.split(":", 1)[-1].upper()
+        quote_data = by_symbol.get(tv_symbol) or by_symbol.get(alias_to_tv.get(short, ""))
+        if quote_data:
+            records[tv_symbol] = quote_data
+            records[short] = quote_data
+    # Solo incluir claves ya solicitadas.
+    return {
+        key: value
+        for key, value in records.items()
+        if key in requested_tv or key in requested_short
+    }
 
 
 def fetch_technicals_batch(symbols: list[str], interval: str = "1D") -> tuple[dict[str, dict[str, Any]], list[str]]:
