@@ -170,6 +170,18 @@ def _extract_news_items(payload: Any) -> list[dict[str, Any]]:
     return []
 
 
+
+
+def _extract_earnings_items(payload: Any) -> list[dict[str, Any]]:
+    if isinstance(payload, list):
+        return [x for x in payload if isinstance(x, dict)]
+    if isinstance(payload, dict):
+        for key in ("items", "earnings", "calendar", "data", "results"):
+            candidate = payload.get(key)
+            if isinstance(candidate, list):
+                return [x for x in candidate if isinstance(x, dict)]
+    return []
+
 def _extract_ohlcv_rows(payload: Any) -> list[dict[str, Any]]:
     if isinstance(payload, list):
         return [x for x in payload if isinstance(x, dict)]
@@ -336,6 +348,52 @@ def fetch_news(symbol: str, limit: int = 5) -> tuple[list[dict[str, Any]], list[
         )
     return news[:limit], warnings
 
+
+
+def fetch_news_for_symbols(symbols: list[str], limit_per_symbol: int = 3) -> tuple[dict[str, list[dict[str, Any]]], list[str]]:
+    warnings: list[str] = []
+    news_map: dict[str, list[dict[str, Any]]] = {}
+
+    for symbol in symbols:
+        tv_symbol = normalize_tv_symbol(symbol)
+        short = tv_symbol.split(":", 1)[-1].upper()
+        try:
+            news, news_warnings = fetch_news(tv_symbol, limit=limit_per_symbol)
+            news_map[tv_symbol.upper()] = news
+            news_map[short] = news
+            warnings.extend(news_warnings)
+            if not news:
+                warnings.append(f"{tv_symbol}: sin titulares recientes en get_news.")
+        except Exception as exc:
+            warnings.append(f"get_news falló para {tv_symbol}: {exc}")
+            news_map[tv_symbol.upper()] = []
+            news_map[short] = []
+
+    return news_map, warnings
+
+
+def fetch_earnings_calendar(symbols: list[str]) -> tuple[dict[str, list[dict[str, Any]]], list[str]]:
+    warnings: list[str] = []
+    earnings_map: dict[str, list[dict[str, Any]]] = {}
+
+    for symbol in symbols:
+        tv_symbol = normalize_tv_symbol(symbol)
+        short = tv_symbol.split(":", 1)[-1].upper()
+        try:
+            raw = _extract_result_payload(call_tool("get_earnings_calendar", {"symbol": tv_symbol}))
+            parsed, parse_warnings = parse_mcp_text_payload(raw)
+            items = _extract_earnings_items(parsed)
+            earnings_map[tv_symbol.upper()] = items
+            earnings_map[short] = items
+            warnings.extend(parse_warnings)
+            if not items:
+                warnings.append(f"{tv_symbol}: get_earnings_calendar sin datos parseables.")
+        except Exception as exc:
+            warnings.append(f"get_earnings_calendar no disponible para {tv_symbol}: {exc}")
+            earnings_map[tv_symbol.upper()] = []
+            earnings_map[short] = []
+
+    return earnings_map, warnings
 
 def fetch_ohlcv(symbol: str, interval: str = "1D", count: int = 300) -> tuple[pd.DataFrame, list[str]]:
     raw = _extract_result_payload(

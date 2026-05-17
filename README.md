@@ -134,4 +134,4 @@ Esta ruta permite validar el MVP end-to-end sin depender de APIs externas ni con
 
 ## Estado del scanner Nasdaq 100
 
-Scanner inicial implementado: usa `config/nasdaq100_symbols.yaml`, consulta `get_quotes_batch` + `get_technicals` y genera `reports/generated/nasdaq100_scan_report.md`.
+Scanner Nasdaq 100 operativo: usa `config/nasdaq100_symbols.yaml`, consulta `get_quotes_batch` + `get_technicals` y añade catalizadores básicos con `get_news` por símbolo (y `get_earnings_calendar` si está disponible), scoring 0-100 y reporte Markdown extendido en `reports/generated/nasdaq100_scan_report.md`.

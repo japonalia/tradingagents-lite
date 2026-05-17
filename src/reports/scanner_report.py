@@ -31,23 +31,46 @@ def generate_scanner_report(candidates, output_path, source="tvremix"):
         "",
         "## Top candidatas",
         "",
-        "| Ranking | Ticker | Precio | Variación % | Volumen | Rating técnico | RSI | Score | Riesgo / warnings |",
-        "|---:|---|---:|---:|---:|---|---:|---:|---|",
+        "| Ranking | Ticker | Precio | Variación % | Volumen | Rating técnico | RSI | Catalizador | Score | Riesgo / warnings |",
+        "|---:|---|---:|---:|---:|---|---:|---|---:|---|",
     ]
 
-    for idx, c in enumerate(sorted(candidates, key=lambda x: x.get("total_score", 0), reverse=True), start=1):
+    sorted_candidates = sorted(candidates, key=lambda x: x.get("total_score", 0), reverse=True)
+    for idx, c in enumerate(sorted_candidates, start=1):
         warnings = "; ".join(c.get("warnings") or c.get("reasons") or []) or "-"
         lines.append(
-            f"| {idx} | {_fmt(c.get('ticker'))} | {_fmt(c.get('price'))} | {_fmt(c.get('change_percent'))} | {_fmt(c.get('volume'))} | {_fmt(c.get('technical_rating'))} | {_fmt(c.get('rsi'))} | {_fmt(c.get('total_score'))} | {warnings} |"
+            f"| {idx} | {_fmt(c.get('ticker'))} | {_fmt(c.get('price'))} | {_fmt(c.get('change_percent'))} | {_fmt(c.get('volume'))} | {_fmt(c.get('technical_rating'))} | {_fmt(c.get('rsi'))} | {_fmt(c.get('catalyst_summary'))} | {_fmt(c.get('total_score'))} | {warnings} |"
         )
+
+    lines.extend(["", "## Catalizadores detectados", ""])
+    for c in sorted_candidates[: min(5, len(sorted_candidates))]:
+        ticker = _fmt(c.get("ticker"))
+        lines.append(f"### {ticker}")
+        lines.append(f"- Resumen: {_fmt(c.get('catalyst_summary'))}")
+        titles = c.get("latest_news_titles") or []
+        if titles:
+            lines.append("- Titulares:")
+            for title in titles:
+                lines.append(f"  - {title}")
+        else:
+            lines.append("- Titulares: ninguno")
+
+        earnings_items = c.get("earnings_items") or []
+        if earnings_items:
+            lines.append(f"- Earnings: {len(earnings_items)} evento(s) detectado(s)")
+        else:
+            lines.append("- Earnings: no detectados")
+
+        catalyst_warnings = c.get("catalyst_warnings") or []
+        lines.append(f"- Warnings: {'; '.join(catalyst_warnings) if catalyst_warnings else 'ninguno'}")
+        lines.append("")
 
     lines.extend(
         [
-            "",
             "## No es señal ejecutable",
             "Este reporte es informativo y no constituye una orden, recomendación ni señal ejecutable de trading.",
             "",
-            "Notas de versión: VWAP, RVOL y premarket high/low no están disponibles en esta versión inicial.",
+            "VWAP, RVOL y premarket high/low siguen no disponibles en esta versión.",
             "",
         ]
     )

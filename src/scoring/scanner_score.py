@@ -14,53 +14,92 @@ def score_candidate(candidate: dict) -> dict:
 
     reasons: list[str] = []
     missing_fields = list(candidate.get("missing_fields") or [])
-    score = 0.0
+    warnings = list(candidate.get("warnings") or [])
+    penalties: list[str] = []
 
+    # Momentum / change_percent: 0-15
+    momentum = 0.0
     cp = _to_float(candidate.get("change_percent"))
     if cp is None:
         reasons.append("Sin change_percent.")
     else:
-        score += max(0.0, min(20.0, 10.0 + cp * 2.0))
+        momentum = max(0.0, min(15.0, 7.5 + cp * 1.2))
 
-    if candidate.get("volume") not in (None, ""):
-        score += 15.0
-    else:
+    # Volumen / liquidez: 0-15
+    volume_score = 15.0 if candidate.get("volume") not in (None, "") else 0.0
+    if not volume_score:
         reasons.append("Sin volumen.")
 
+    # Técnico / rating / RSI: 0-20
+    technical = 0.0
     rating = str(candidate.get("technical_rating") or "").upper()
     rating_map = {
-        "STRONG_BUY": 20,
-        "BUY": 16,
-        "NEUTRAL": 10,
-        "SELL": 4,
+        "STRONG_BUY": 12,
+        "BUY": 9,
+        "NEUTRAL": 6,
+        "SELL": 3,
         "STRONG_SELL": 0,
     }
     matched = next((v for k, v in rating_map.items() if k in rating), None)
     if matched is None:
         reasons.append("Sin rating técnico utilizable.")
     else:
-        score += float(matched)
+        technical += float(matched)
 
     rsi = _to_float(candidate.get("rsi"))
     if rsi is None:
         reasons.append("Sin RSI.")
     elif 45 <= rsi <= 65:
-        score += 15
+        technical += 8
     elif 35 <= rsi < 45 or 65 < rsi <= 75:
-        score += 10
+        technical += 5
     else:
-        score += 5
+        technical += 3
+    technical = min(20.0, technical)
 
-    if candidate.get("market_cap") not in (None, ""):
-        score += 10
-    else:
-        reasons.append("Sin market_cap.")
+    # Catalizador / noticias / earnings: 0-20
+    catalyst = 0.0
+    if candidate.get("news_count", 0) > 0:
+        catalyst += min(12.0, 4.0 * float(candidate.get("news_count", 0)))
+    if candidate.get("earnings_nearby"):
+        catalyst += 8.0
+    if not candidate.get("has_recent_catalyst"):
+        catalyst = max(0.0, catalyst - 6.0)
+        penalties.append("Sin catalizador confirmado.")
+    catalyst = min(20.0, catalyst)
 
-    quality = max(0, 20 - len(set(missing_fields)) * 4)
-    score += quality
+    # Data quality: 0-20
+    data_quality = max(0.0, 20.0 - len(set(missing_fields)) * 4.0)
+
+    # Riesgo / penalizaciones: 0-10
+    risk = 10.0
+    if "STRONG_SELL" in rating:
+        risk -= 4
+        penalties.append("Rating técnico Strong Sell.")
+    if rsi is not None and rsi > 75:
+        risk -= 2
+        warnings.append("RSI > 75: posible sobreextensión.")
+    if cp is not None and cp >= 4 and not candidate.get("has_recent_catalyst"):
+        risk -= 2
+        warnings.append("FOMO: subida fuerte sin noticia confirmada.")
+    if cp is not None and cp <= -4 and not candidate.get("has_recent_catalyst"):
+        risk -= 2
+        warnings.append("Caída fuerte sin noticia confirmada.")
+    risk = max(0.0, risk)
+
+    total = momentum + volume_score + technical + catalyst + data_quality + risk
 
     return {
-        "total_score": round(score, 2),
-        "reasons": reasons,
+        "total_score": round(min(100.0, total), 2),
+        "score_breakdown": {
+            "momentum": round(momentum, 2),
+            "volume_liquidity": round(volume_score, 2),
+            "technical": round(technical, 2),
+            "catalyst": round(catalyst, 2),
+            "data_quality": round(data_quality, 2),
+            "risk": round(risk, 2),
+        },
+        "reasons": reasons + penalties,
+        "warnings": warnings,
         "missing_fields": missing_fields,
     }
