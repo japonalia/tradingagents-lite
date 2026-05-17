@@ -7,7 +7,7 @@ TradingAgents Lite es una herramienta mínima en Python para generar una ficha t
 ## Estado actual de fuentes de datos
 
 - Fuente soportada principal: **yfinance**.
-- Soporte inicial opcional para **TVRemix MCP** (integración defensiva; schema aún pendiente de mapear).
+- Soporte inicial opcional para **TVRemix MCP** (mapeo real inicial para `get_quote`, `get_technicals`, `get_financials`, `get_news`, `get_ohlcv`).
 - Si TVRemix falla en runtime, el proveedor aplica fallback a **yfinance** con aviso legible.
 
 ## Instalación
@@ -53,6 +53,21 @@ Buenas prácticas:
 - No imprimas ni compartas tu `TVREMIX_API_KEY`.
 - No subas `.env` al repositorio.
 
+
+## Test de símbolo TVRemix
+
+Para validar el primer mapeo real del ticker NVDA:
+
+```bash
+python tools/test_tvremix_symbol.py
+```
+
+El script prueba `get_quote`, `get_technicals`, `get_financials`, `get_news`, `get_ohlcv` y guarda salida sanitizada en:
+
+```text
+reports/generated/tvremix_NVDA_test.json
+```
+
 ## Uso
 
 Ejecuta el comando:
@@ -75,9 +90,10 @@ Esto hace:
 - Genera un informe Markdown bruto listo para pegar en TradingAgents GPT.
 
 Comportamiento con TVRemix:
-- Si TVRemix responde pero su schema aún no está mapeado, se avisa:
-  - `TVRemix conectado parcialmente / schema pendiente de mapear`
-- Si TVRemix falla, el sistema sigue con yfinance y muestra aviso de fallback.
+- Si pasas `NVDA`, se normaliza a `NASDAQ:NVDA` internamente para TVRemix.
+- Para otros mercados usa formato TradingView (ej. `NYSE:IBM`).
+- Si hay diferencias de schema, no se inventan campos: se reportan warnings y claves observadas.
+- Si TVRemix falla completamente, el sistema usa fallback yfinance y deja aviso explícito.
 
 Si se solicita una fuente no soportada, el CLI informa claramente:
 
