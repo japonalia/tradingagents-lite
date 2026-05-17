@@ -22,6 +22,8 @@ def run_ticker_command(ticker: str, source: str = "yfinance") -> Path:
         levels=levels,
         missing_data=ticker_data.missing_fields,
         history_rows=len(ticker_data.history),
+        source=ticker_data.source,
+        warnings=ticker_data.warnings,
     )
 
     for warning in ticker_data.warnings:

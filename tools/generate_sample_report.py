@@ -64,6 +64,8 @@ def generate_sample_report() -> Path:
         levels=levels,
         missing_data=["market_cap", "pe_ratio", "eps"],
         history_rows=len(history),
+        source="sample",
+        warnings=[],
     )
 
     output_path.parent.mkdir(parents=True, exist_ok=True)

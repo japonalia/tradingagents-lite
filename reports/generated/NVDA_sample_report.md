@@ -1,5 +1,7 @@
 # Informe bruto para NVDA_SAMPLE
 
+- Fuente primaria: sample
+
 ## Datos de mercado
 - Precio último: 503.48
 - Variación: -0.80
@@ -27,26 +29,9 @@
 ## Niveles
 - Soporte aproximado reciente: 481.41
 - Resistencia aproximada reciente: 504.28
-- Máximo 20 sesiones: 504.28
-- Mínimo 20 sesiones: 481.41
-- Máximo 50 sesiones: 504.28
-- Mínimo 50 sesiones: 469.48
+
+## Warnings
+- Ninguno
 
 ## Datos no disponibles
 - market_cap, pe_ratio, eps
-
-## Bloque para pegar en GPT TradingAgents
-```text
-Ticker: NVDA_SAMPLE
-Precio último: 503.48
-Cambio diario: -0.80 (-0.16%)
-SMA20/SMA50/SMA200: 490.25 / 484.05 / No disponible
-RSI14: 79.47
-MACD/Signal/Hist: 5.03 / 3.62 / 1.41
-ATR14: 6.95
-Soporte/Resistencia reciente: 481.41 / 504.28
-Max/Min 20: 504.28 / 481.41
-Max/Min 50: 504.28 / 469.48
-Campos no disponibles: market_cap, pe_ratio, eps
-No usar este bloque para ejecutar trading automático.
-```
