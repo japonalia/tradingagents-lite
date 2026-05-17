@@ -45,8 +45,16 @@ def _compute_atr(history: pd.DataFrame, period: int = 14) -> pd.Series | None:
     return true_range.rolling(window=period, min_periods=period).mean()
 
 
+def _resolve_price_column(history: pd.DataFrame, preferred: str) -> str | None:
+    for column in history.columns:
+        if column.lower() == preferred.lower():
+            return column
+    return None
+
+
 def calculate_technicals(history: pd.DataFrame) -> dict[str, float | None]:
-    if history.empty or "Close" not in history.columns:
+    close_column = _resolve_price_column(history, "Close")
+    if history.empty or close_column is None:
         return {
             "sma_20": None,
             "sma_50": None,
@@ -58,14 +66,19 @@ def calculate_technicals(history: pd.DataFrame) -> dict[str, float | None]:
             "atr_14": None,
         }
 
-    close = history["Close"].copy()
+    close = history[close_column].copy()
 
     sma_20 = close.rolling(window=20, min_periods=20).mean()
     sma_50 = close.rolling(window=50, min_periods=50).mean()
     sma_200 = close.rolling(window=200, min_periods=200).mean()
     rsi_14 = _compute_rsi(close, 14)
     macd, macd_signal, macd_hist = _compute_macd(close)
-    atr_14 = _compute_atr(history, 14)
+    normalized = history.rename(columns={
+        _resolve_price_column(history, "High") or "High": "High",
+        _resolve_price_column(history, "Low") or "Low": "Low",
+        close_column: "Close",
+    })
+    atr_14 = _compute_atr(normalized, 14)
 
     return {
         "sma_20": _to_float(sma_20.iloc[-1]),
