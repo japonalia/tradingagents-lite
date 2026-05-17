@@ -26,7 +26,25 @@ def _safe_json_loads(raw_text: str) -> Any:
     try:
         return json.loads(raw_text)
     except json.JSONDecodeError:
-        return {"raw_text": raw_text}
+        return None
+
+
+def _extract_json_from_sse(raw_text: str) -> Any:
+    events: list[str] = []
+    for line in raw_text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("data:"):
+            events.append(stripped[len("data:") :].strip())
+
+    if not events:
+        return None
+
+    for chunk in reversed(events):
+        parsed = _safe_json_loads(chunk)
+        if parsed is not None:
+            return parsed
+
+    return None
 
 
 def _extract_tools(result_payload: Any) -> list[dict[str, Any]]:
@@ -62,6 +80,7 @@ def main() -> int:
         return 1
 
     headers = {
+        "Accept": "application/json, text/event-stream",
         "Authorization": f"Bearer {tvremix_api_key}",
         "Content-Type": "application/json",
     }
@@ -86,7 +105,22 @@ def main() -> int:
     print(f"status_code: {response.status_code}")
 
     sanitized_body_text = _redact_secrets(response.text, tvremix_api_key)
+    content_type = (response.headers.get("Content-Type") or "").lower()
+
     parsed_body = _safe_json_loads(sanitized_body_text)
+    is_sse = "text/event-stream" in content_type
+
+    if parsed_body is None and is_sse:
+        parsed_body = _extract_json_from_sse(sanitized_body_text)
+        if parsed_body is None:
+            parsed_body = {
+                "raw_text": sanitized_body_text,
+                "message": "Respuesta SSE recibida; parseo pendiente de implementar",
+            }
+            print("Respuesta SSE recibida; parseo pendiente de implementar")
+
+    if parsed_body is None:
+        parsed_body = {"raw_text": sanitized_body_text}
 
     if not response.ok:
         print("tools/list falló. Body sanitizado:")

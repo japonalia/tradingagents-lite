@@ -30,6 +30,7 @@ def _get_tvremix_config() -> tuple[str | None, str | None]:
 
 def _build_headers(api_key: str) -> dict[str, str]:
     return {
+        "Accept": "application/json, text/event-stream",
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
     }
