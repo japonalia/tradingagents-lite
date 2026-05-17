@@ -4,6 +4,12 @@ TradingAgents Lite es una herramienta mínima en Python para generar una ficha t
 
 > Esta versión **no** usa APIs LLM, no ejecuta trading y no emite recomendaciones financieras automáticas.
 
+## Estado actual de fuentes de datos
+
+- La fuente activa y soportada hoy es **yfinance**.
+- El proyecto ya incluye una **capa abstracta de proveedores de datos** para permitir múltiples fuentes en el futuro.
+- **TVRemix MCP todavía no está integrado**; queda como siguiente paso.
+
 ## Instalación
 
 1. Crear y activar entorno virtual (opcional, recomendado).
@@ -21,11 +27,21 @@ Ejecuta el comando:
 python -m src.cli ticker NVDA
 ```
 
+Opcionalmente puedes indicar la fuente (por ahora solo `yfinance`):
+
+```bash
+python -m src.cli ticker NVDA --source yfinance
+```
+
 Esto hace:
-- Descarga datos de mercado e histórico diario desde `yfinance` (fuente inicial/fallback).
+- Obtiene datos de mercado e histórico diario desde `yfinance` mediante la capa de proveedores.
 - Calcula indicadores técnicos básicos (SMA, RSI, MACD, ATR).
 - Calcula niveles simples de soporte/resistencia y rangos recientes.
 - Genera un informe Markdown bruto listo para pegar en TradingAgents GPT.
+
+Si se solicita una fuente no soportada, el CLI informa claramente:
+
+- `Fuente de datos no soportada todavía`
 
 ## Salida
 
