@@ -81,6 +81,7 @@ Puedes indicar fuente explícita:
 ```bash
 python -m src.cli ticker NVDA --source yfinance
 python -m src.cli ticker NVDA --source tvremix
+python -m src.cli scan-nasdaq100 --source tvremix --limit 10
 ```
 
 Esto hace:
@@ -133,4 +134,4 @@ Esta ruta permite validar el MVP end-to-end sin depender de APIs externas ni con
 
 ## Estado del scanner Nasdaq 100
 
-El scanner Nasdaq 100 está en preparación.
+Scanner inicial implementado: usa `config/nasdaq100_symbols.yaml`, consulta `get_quotes_batch` + `get_technicals` y genera `reports/generated/nasdaq100_scan_report.md`.

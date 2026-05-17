@@ -1,50 +1,53 @@
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
 
 
-def generate_scanner_report(candidates, output_path):
-    """Genera un reporte Markdown básico para el scanner Nasdaq 100 (placeholder)."""
-    candidates = list(candidates or [])
+def _fmt(value):
+    return "N/A" if value in (None, "") else str(value)
+
+
+def generate_scanner_report(candidates, output_path, source="tvremix"):
+    candidates = [c for c in (candidates or []) if isinstance(c, dict)]
     output = Path(output_path)
+
+    total = len(candidates)
+    complete = sum(1 for c in candidates if not c.get("missing_fields"))
+    missing = total - complete
+    unavailable = sorted({field for c in candidates for field in (c.get("missing_fields") or [])})
 
     lines = [
         "# Scanner Nasdaq 100",
         "",
+        f"- Fecha/hora generación (local): **{datetime.now().astimezone().isoformat(timespec='seconds')}**",
+        f"- Fuente primaria: **{source}**",
+        "",
         "## Calidad de datos",
+        f"- Candidatas evaluadas: **{total}**",
+        f"- Completas: **{complete}**",
+        f"- Con datos faltantes: **{missing}**",
+        f"- Datos no disponibles detectados: **{', '.join(unavailable) if unavailable else 'ninguno'}**",
+        "",
+        "## Top candidatas",
+        "",
+        "| Ranking | Ticker | Precio | Variación % | Volumen | Rating técnico | RSI | Score | Riesgo / warnings |",
+        "|---:|---|---:|---:|---:|---|---:|---:|---|",
     ]
 
-    if candidates:
-        complete = 0
-        for candidate in candidates:
-            missing = candidate.get("missing_fields") if isinstance(candidate, dict) else None
-            if not missing:
-                complete += 1
-        lines.append(f"- Candidatas recibidas: **{len(candidates)}**")
-        lines.append(f"- Candidatas con datos completos: **{complete}**")
-        lines.append(f"- Candidatas con datos faltantes: **{len(candidates) - complete}**")
-    else:
-        lines.append("- No se recibieron candidatas todavía.")
-
-    lines.extend(["", "## Top candidatas"])
-
-    if candidates:
-        ranked = sorted(
-            [candidate for candidate in candidates if isinstance(candidate, dict)],
-            key=lambda item: item.get("total_score", 0),
-            reverse=True,
+    for idx, c in enumerate(sorted(candidates, key=lambda x: x.get("total_score", 0), reverse=True), start=1):
+        warnings = "; ".join(c.get("warnings") or c.get("reasons") or []) or "-"
+        lines.append(
+            f"| {idx} | {_fmt(c.get('ticker'))} | {_fmt(c.get('price'))} | {_fmt(c.get('change_percent'))} | {_fmt(c.get('volume'))} | {_fmt(c.get('technical_rating'))} | {_fmt(c.get('rsi'))} | {_fmt(c.get('total_score'))} | {warnings} |"
         )
-        for index, candidate in enumerate(ranked[:5], start=1):
-            ticker = candidate.get("ticker", "N/A")
-            score = candidate.get("total_score", 0)
-            lines.append(f"{index}. **{ticker}** — score: `{score}`")
-    else:
-        lines.append("_Sin candidatas para mostrar por ahora._")
 
     lines.extend(
         [
             "",
-            "> Nota: el scanner real de Nasdaq 100 se implementará en una fase posterior.",
+            "## No es señal ejecutable",
+            "Este reporte es informativo y no constituye una orden, recomendación ni señal ejecutable de trading.",
+            "",
+            "Notas de versión: VWAP, RVOL y premarket high/low no están disponibles en esta versión inicial.",
             "",
         ]
     )
