@@ -305,8 +305,43 @@ def fetch_tvremix_data(symbol: str) -> MarketDataResult:
 
     warnings.extend(quote_warnings + tech_warnings + fin_warnings + news_warnings + ohlcv_warnings)
 
-    tech_summary = technicals.get("data", {}).get("summary", {}) if isinstance(technicals.get("data"), dict) else {}
-    tech_osc = technicals.get("data", {}).get("oscillators", {}) if isinstance(technicals.get("data"), dict) else {}
+    quote_data = quote.get("data", {}) if isinstance(quote.get("data"), dict) else quote
+    technicals_data = (
+        technicals.get("data", {}) if isinstance(technicals.get("data"), dict) else technicals
+    )
+    financials_data = (
+        financials.get("data", {}) if isinstance(financials.get("data"), dict) else financials
+    )
+
+    tech_summary = technicals_data.get("summary", {}) if isinstance(technicals_data, dict) else {}
+    tech_osc = technicals_data.get("oscillators", {}) if isinstance(technicals_data, dict) else {}
+
+    if isinstance(quote.get("data"), dict):
+        expected_quote_fields = [
+            "price",
+            "change_abs",
+            "change_percent",
+            "volume",
+            "market_cap",
+            "pe_ratio",
+            "sector",
+            "industry",
+            "name",
+            "description",
+        ]
+        missing_quote_fields = [field for field in expected_quote_fields if field not in quote_data]
+        if missing_quote_fields:
+            warnings.append(
+                "get_quote.data sin campos esperados: " + ", ".join(sorted(missing_quote_fields))
+            )
+
+    if isinstance(financials.get("data"), dict):
+        known_financial_fields = {"eps", "revenue", "ebitda", "debt", "sector", "industry", "pe_ratio", "market_cap"}
+        if not any(field in financials_data for field in known_financial_fields):
+            warnings.append(
+                "get_financials.data con nombres no mapeados. keys="
+                + ", ".join(sorted(financials_data.keys()))
+            )
 
     market_data: dict[str, Any] = {
         "tv_symbol": tv_symbol,
@@ -314,23 +349,27 @@ def fetch_tvremix_data(symbol: str) -> MarketDataResult:
         "technicals": technicals,
         "financials": financials,
         "news": news_items,
-        "last_price": quote.get("last_price") or quote.get("price") or quote.get("close"),
-        "change_abs": quote.get("change_abs") or quote.get("change"),
-        "change_percent": quote.get("change_percent"),
-        "volume": quote.get("volume"),
-        "market_cap": quote.get("market_cap") or financials.get("market_cap") or financials.get("marketCap"),
-        "pe_ratio": quote.get("pe_ratio") or financials.get("pe_ratio") or financials.get("pe") or financials.get("trailing_pe"),
-        "eps": financials.get("eps"),
-        "revenue": financials.get("revenue"),
-        "ebitda": financials.get("ebitda"),
-        "debt": financials.get("debt"),
-        "sector": quote.get("sector") or financials.get("sector"),
-        "industry": quote.get("industry") or financials.get("industry"),
-        "name": quote.get("name"),
-        "description": quote.get("description"),
+        "last_price": quote_data.get("price") or quote.get("last_price") or quote.get("price") or quote.get("close"),
+        "change_abs": quote_data.get("change_abs") or quote.get("change_abs") or quote.get("change"),
+        "change_percent": quote_data.get("change_percent") or quote.get("change_percent"),
+        "volume": quote_data.get("volume") or quote.get("volume"),
+        "market_cap": quote_data.get("market_cap") or quote.get("market_cap") or financials_data.get("market_cap") or financials.get("market_cap") or financials.get("marketCap"),
+        "pe_ratio": quote_data.get("pe_ratio") or quote.get("pe_ratio") or financials_data.get("pe_ratio") or financials.get("pe_ratio") or financials.get("pe") or financials.get("trailing_pe"),
+        "eps": financials_data.get("eps") or financials.get("eps"),
+        "revenue": financials_data.get("revenue") or financials.get("revenue"),
+        "ebitda": financials_data.get("ebitda") or financials.get("ebitda"),
+        "debt": financials_data.get("debt") or financials.get("debt"),
+        "sector": quote_data.get("sector") or quote.get("sector") or financials_data.get("sector") or financials.get("sector"),
+        "industry": quote_data.get("industry") or quote.get("industry") or financials_data.get("industry") or financials.get("industry"),
+        "name": quote_data.get("name") or quote.get("name"),
+        "description": quote_data.get("description") or quote.get("description"),
         "technical_rating": tech_summary.get("recommendation"),
         "technical_rating_value": tech_summary.get("value"),
-        "rsi": tech_osc.get("rsi") or technicals.get("rsi"),
+        "tvremix_rsi": tech_osc.get("rsi"),
+        "technical_price": technicals_data.get("price"),
+        "technical_change": technicals_data.get("change"),
+        "technical_volume": technicals_data.get("volume"),
+        "rsi": tech_osc.get("rsi") or technicals_data.get("rsi") or technicals.get("rsi"),
         "ohlcv_rows": len(history),
     }
 
