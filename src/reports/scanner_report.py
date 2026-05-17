@@ -8,11 +8,13 @@ def _fmt(value):
     return "N/A" if value in (None, "") else str(value)
 
 
-def generate_scanner_report(candidates, output_path, source="tvremix", global_warnings=None):
+def generate_scanner_report(candidates, output_path, source="tvremix", global_warnings=None, metrics=None):
     candidates = [c for c in (candidates or []) if isinstance(c, dict)]
     output = Path(output_path)
 
-    total = len(candidates)
+    total = int((metrics or {}).get("candidates_evaluated", len(candidates)))
+    symbols_in_universe = int((metrics or {}).get("symbols_in_universe", total))
+    shown = int((metrics or {}).get("candidates_shown", len(candidates)))
     complete = sum(1 for c in candidates if not c.get("missing_fields"))
     missing = total - complete
     unavailable = sorted({field for c in candidates for field in (c.get("missing_fields") or [])})
@@ -26,7 +28,9 @@ def generate_scanner_report(candidates, output_path, source="tvremix", global_wa
         f"- Fuente primaria: **{source}**",
         "",
         "## Calidad de datos",
+        f"- Símbolos en universo: **{symbols_in_universe}**",
         f"- Candidatas evaluadas: **{total}**",
+        f"- Candidatas mostradas: **{shown}**",
         f"- Completas: **{complete}**",
         f"- Con datos faltantes: **{missing}**",
         f"- Datos no disponibles detectados: **{', '.join(unavailable) if unavailable else 'ninguno'}**",
@@ -39,19 +43,19 @@ def generate_scanner_report(candidates, output_path, source="tvremix", global_wa
 
     sorted_candidates = sorted(candidates, key=lambda x: x.get("total_score", 0), reverse=True)
 
-    lines.extend(["## Warnings globales", ""])
-    if gw:
-        for warning in gw:
-            lines.append(f"- {warning}")
-    else:
-        lines.append("- Ninguno")
-    lines.append("")
     for idx, c in enumerate(sorted_candidates, start=1):
         local_warnings = [str(w)[:120] for w in (c.get("warnings") or c.get("reasons") or [])]
         warnings = "; ".join(local_warnings[:3]) or "-"
         lines.append(
             f"| {idx} | {_fmt(c.get('ticker'))} | {_fmt(c.get('price'))} | {_fmt(c.get('change_percent'))} | {_fmt(c.get('volume'))} | {_fmt(c.get('technical_rating'))} | {_fmt(c.get('rsi'))} | {_fmt(c.get('catalyst_summary'))} | {_fmt(c.get('total_score'))} | {warnings} |"
         )
+
+    lines.extend(["", "## Warnings globales", ""])
+    if gw:
+        for warning in gw:
+            lines.append(f"- {warning}")
+    else:
+        lines.append("- Ninguno")
 
     lines.extend(["", "## Catalizadores detectados", ""])
     for c in sorted_candidates[: min(5, len(sorted_candidates))]:
