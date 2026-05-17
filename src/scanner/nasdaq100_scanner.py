@@ -23,20 +23,22 @@ def _first_non_empty(item: dict, keys: list[str]):
     return None
 
 
-def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int = 10) -> dict:
+def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int = 10, max_symbols: int | None = None) -> dict:
     if source.strip().lower() != "tvremix":
         raise ValueError("Por ahora scan-nasdaq100 solo soporta --source tvremix")
 
     symbols = load_nasdaq100_symbols()
-    selected = symbols[: max(1, int(limit))]
+    universe_symbols = symbols
+    if max_symbols is not None:
+        universe_symbols = symbols[: max(1, int(max_symbols))]
     global_warnings: list[str] = []
 
-    quotes_map, quote_warnings = fetch_quotes_batch(selected)
-    technicals_map, tech_warnings = fetch_technicals_batch(selected)
+    quotes_map, quote_warnings = fetch_quotes_batch(universe_symbols)
+    technicals_map, tech_warnings = fetch_technicals_batch(universe_symbols)
     global_warnings.extend(quote_warnings + tech_warnings)
 
     candidates: list[dict] = []
-    for symbol in selected:
+    for symbol in universe_symbols:
         key = symbol.upper()
         quote_raw = quotes_map.get(key, {})
         tech_raw = technicals_map.get(key, {})
@@ -101,6 +103,7 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
     news_map: dict = {}
     earnings_map: dict = {}
     rate_limit_reached = False
+    earnings_rate_limit_reached = False
 
     try:
         news_map, news_warnings = fetch_news_for_symbols(catalyst_symbols, limit_per_symbol=3)
@@ -121,7 +124,7 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
             msg = str(exc)
             if "429" in msg or "Too Many Requests" in msg:
                 rate_limit_reached = True
-                global_warnings.append("rate limit alcanzado: se omiten noticias/earnings restantes")
+                earnings_rate_limit_reached = True
             else:
                 global_warnings.append(f"get_earnings_calendar fallo global: {exc}")
 
@@ -158,4 +161,33 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
         candidate["catalyst_summary"] = catalyst_summary
         candidate.update(score_candidate(candidate))
 
-    return {"candidates": sorted(candidates, key=lambda c: c.get("total_score", 0), reverse=True), "global_warnings": global_warnings}
+    no_headlines_symbols = 0
+    for candidate in candidates:
+        if candidate["ticker"].upper() in catalyst_symbol_keys and not candidate.get("latest_news_titles"):
+            no_headlines_symbols += 1
+
+    if no_headlines_symbols:
+        global_warnings.append(f"get_news sin titulares parseables para {no_headlines_symbols} símbolos")
+
+    if earnings_rate_limit_reached:
+        global_warnings.append("rate limit alcanzado en earnings; se detuvieron consultas adicionales")
+
+    deduped_global_warnings = []
+    seen = set()
+    for warning in global_warnings:
+        key = warning.strip()
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        deduped_global_warnings.append(key)
+
+    ranked_final = sorted(candidates, key=lambda c: c.get("total_score", 0), reverse=True)
+    shown_limit = max(1, int(limit))
+
+    return {
+        "symbols_in_universe": len(symbols),
+        "candidates_evaluated": len(candidates),
+        "candidates_shown": min(shown_limit, len(ranked_final)),
+        "candidates": ranked_final[:shown_limit],
+        "global_warnings": deduped_global_warnings,
+    }

@@ -81,7 +81,7 @@ Puedes indicar fuente explícita:
 ```bash
 python -m src.cli ticker NVDA --source yfinance
 python -m src.cli ticker NVDA --source tvremix
-python -m src.cli scan-nasdaq100 --source tvremix --limit 100 --catalyst-top-n 10
+python -m src.cli scan-nasdaq100 --source tvremix --limit 10 --catalyst-top-n 10
 ```
 
 Esto hace:
@@ -135,3 +135,9 @@ Esta ruta permite validar el MVP end-to-end sin depender de APIs externas ni con
 ## Estado del scanner Nasdaq 100
 
 Scanner Nasdaq 100 operativo: usa `config/nasdaq100_symbols.yaml` (universo amplio), consulta `get_quotes_batch` para todo el universo, hace scoring preliminar y sólo pide `get_news` + `get_earnings_calendar` para el top `--catalyst-top-n` para reducir rate limits (429). El reporte incluye warnings globales separados de warnings por ticker.
+
+
+Parámetros del scanner Nasdaq 100:
+- `--limit`: limita solo cuántas filas se muestran en el ranking final del reporte.
+- `--catalyst-top-n`: limita cuántas candidatas preliminares reciben consultas de `get_news` + `get_earnings_calendar`.
+- `--max-symbols`: límite opcional del universo evaluado (solo debug/pruebas). Por defecto `None` para evaluar todo `config/nasdaq100_symbols.yaml`.
