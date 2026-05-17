@@ -1,19 +1,42 @@
 # TradingAgents Lite
 
-TradingAgents Lite será una herramienta auxiliar en Python para generar informes técnicos y fundamentales.
+TradingAgents Lite es una herramienta mínima en Python para generar una ficha técnica/fundamental básica en Markdown para un ticker.
 
-Estos informes estarán preparados para ser consumidos por un GPT personalizado llamado **TradingAgents**.
+> Esta versión **no** usa APIs LLM, no ejecuta trading y no emite recomendaciones financieras automáticas.
 
-## Estado actual
+## Instalación
 
-Esta versión inicial incluye únicamente la estructura base del proyecto y archivos de configuración mínimos.
+1. Crear y activar entorno virtual (opcional, recomendado).
+2. Instalar dependencias:
 
-## Alcance inicial
+```bash
+pip install -r requirements.txt
+```
 
-- Estructura modular para futuras fuentes de datos, indicadores, scoring y reportes.
-- Configuración de entorno mediante variables en archivo `.env`.
-- Espacio para prompts y documentación del proyecto.
+## Uso
 
-## Nota
+Ejecuta el comando:
 
-Aún **no** se implementa análisis financiero real ni integración con APIs externas.
+```bash
+python -m src.cli ticker NVDA
+```
+
+Esto hace:
+- Descarga datos de mercado e histórico diario desde `yfinance` (fuente inicial/fallback).
+- Calcula indicadores técnicos básicos (SMA, RSI, MACD, ATR).
+- Calcula niveles simples de soporte/resistencia y rangos recientes.
+- Genera un informe Markdown bruto listo para pegar en TradingAgents GPT.
+
+## Salida
+
+El informe se guarda en:
+
+```text
+reports/generated/[TICKER]_report.md
+```
+
+Por ejemplo:
+
+```text
+reports/generated/NVDA_report.md
+```
