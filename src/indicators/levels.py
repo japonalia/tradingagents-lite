@@ -9,8 +9,16 @@ def _last_window(values: pd.Series, window: int) -> pd.Series:
     return values.tail(min(window, len(values)))
 
 
+def _resolve_column(history: pd.DataFrame, preferred: str) -> str | None:
+    for column in history.columns:
+        if column.lower() == preferred.lower():
+            return column
+    return None
+
+
 def calculate_levels(history: pd.DataFrame) -> dict[str, float | None]:
-    if history.empty or "Close" not in history.columns:
+    close_column = _resolve_column(history, "Close")
+    if history.empty or close_column is None:
         return {
             "support_recent": None,
             "resistance_recent": None,
@@ -20,7 +28,7 @@ def calculate_levels(history: pd.DataFrame) -> dict[str, float | None]:
             "low_50": None,
         }
 
-    close = history["Close"].dropna()
+    close = history[close_column].dropna()
     if close.empty:
         return {
             "support_recent": None,

@@ -40,3 +40,21 @@ Por ejemplo:
 ```text
 reports/generated/NVDA_report.md
 ```
+
+## Prueba sin internet
+
+Si no puedes usar `yfinance` o no tienes internet, puedes generar un informe de ejemplo local usando datos ficticios incluidos en el repositorio.
+
+1. Instala dependencias locales (solo `pandas` y las ya listadas en `requirements.txt`).
+2. Ejecuta:
+
+```bash
+python tools/generate_sample_report.py
+```
+
+El script:
+- Lee `data/sample/NVDA_sample_daily.csv`.
+- Calcula indicadores técnicos y niveles con los módulos actuales.
+- Genera `reports/generated/NVDA_sample_report.md`.
+
+Esta ruta permite validar el MVP end-to-end sin depender de APIs externas ni conexión de red.
