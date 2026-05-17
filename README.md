@@ -130,3 +130,7 @@ El script:
 - Genera `reports/generated/NVDA_sample_report.md`.
 
 Esta ruta permite validar el MVP end-to-end sin depender de APIs externas ni conexión de red.
+
+## Estado del scanner Nasdaq 100
+
+El scanner Nasdaq 100 está en preparación.
