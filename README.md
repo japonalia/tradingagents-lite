@@ -33,6 +33,26 @@ Notas:
 - Si ejecutas `--source tvremix` sin configuración válida, verás:
   - `TVRemix MCP no está configurado. Define TVREMIX_MCP_URL y TVREMIX_API_KEY.`
 
+
+## Diagnóstico TVRemix MCP
+
+Para inspeccionar el schema real de herramientas MCP localmente (sin exponer secretos), ejecuta:
+
+```bash
+python tools/diagnose_tvremix.py
+```
+
+Este script:
+- Carga variables desde `.env` usando `python-dotenv`.
+- Requiere `TVREMIX_MCP_URL` y `TVREMIX_API_KEY` (si faltan, termina con error claro).
+- Llama a TVRemix vía JSON-RPC 2.0 con `method: tools/list`.
+- Muestra `status_code`, nombres de tools, descripción e `inputSchema` cuando exista.
+- Guarda una copia sanitizada en `reports/generated/tvremix_tools_schema.json` sin API key ni headers sensibles.
+
+Buenas prácticas:
+- No imprimas ni compartas tu `TVREMIX_API_KEY`.
+- No subas `.env` al repositorio.
+
 ## Uso
 
 Ejecuta el comando:
