@@ -15,6 +15,9 @@ def generate_scanner_report(candidates, output_path, source="tvremix", global_wa
     total = int((metrics or {}).get("candidates_evaluated", len(candidates)))
     symbols_in_universe = int((metrics or {}).get("symbols_in_universe", total))
     shown = int((metrics or {}).get("candidates_shown", len(candidates)))
+    quotes_available = int((metrics or {}).get("quotes_available", 0))
+    technicals_available = int((metrics or {}).get("technicals_available", 0))
+    catalysts_queried = int((metrics or {}).get("catalysts_queried", 0))
     complete = sum(1 for c in candidates if not c.get("missing_fields"))
     missing = total - complete
     unavailable = sorted({field for c in candidates for field in (c.get("missing_fields") or [])})
@@ -31,6 +34,9 @@ def generate_scanner_report(candidates, output_path, source="tvremix", global_wa
         f"- Símbolos en universo: **{symbols_in_universe}**",
         f"- Candidatas evaluadas: **{total}**",
         f"- Candidatas mostradas: **{shown}**",
+        f"- Quotes disponibles: **{quotes_available}**",
+        f"- Técnicos disponibles: **{technicals_available}**",
+        f"- Catalizadores consultados: **{catalysts_queried}**",
         f"- Completas: **{complete}**",
         f"- Con datos faltantes: **{missing}**",
         f"- Datos no disponibles detectados: **{', '.join(unavailable) if unavailable else 'ninguno'}**",

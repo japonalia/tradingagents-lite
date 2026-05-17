@@ -223,13 +223,34 @@ def fetch_quotes_batch(symbols: list[str]) -> tuple[dict[str, dict[str, Any]], l
     normalized = [normalize_tv_symbol(symbol) for symbol in symbols if str(symbol).strip()]
     if not normalized:
         return {}, ["No se recibieron símbolos para get_quotes_batch."]
+    chunk_size = 50
+    warnings: list[str] = []
+    records: dict[str, dict[str, Any]] = {}
+    failed_chunks = 0
 
-    raw = _extract_result_payload(call_tool("get_quotes_batch", {"symbols": normalized}))
-    parsed, warnings = parse_mcp_text_payload(raw)
-    records = normalize_quote_batch_payload(parsed, normalized)
+    for idx in range(0, len(normalized), chunk_size):
+        chunk = normalized[idx : idx + chunk_size]
+        chunk_number = (idx // chunk_size) + 1
+        try:
+            raw = _extract_result_payload(call_tool("get_quotes_batch", {"symbols": chunk}))
+            parsed, parse_warnings = parse_mcp_text_payload(raw)
+            chunk_records = normalize_quote_batch_payload(parsed, chunk)
+            warnings.extend(parse_warnings)
+            if not chunk_records:
+                failed_chunks += 1
+                warnings.append(
+                    f"get_quotes_batch chunk {chunk_number} sin payload parseable (size={len(chunk)})."
+                )
+            else:
+                records.update(chunk_records)
+        except Exception as exc:
+            failed_chunks += 1
+            warnings.append(
+                f"get_quotes_batch chunk {chunk_number} falló (size={len(chunk)}): {exc}"
+            )
 
-    if not records:
-        warnings.append("get_quotes_batch sin payload parseable; se usará get_quote por símbolo.")
+    if failed_chunks and not records:
+        warnings.append("get_quotes_batch sin payload parseable en todos los chunks.")
 
     return records, warnings
 
@@ -323,6 +344,89 @@ def fetch_technicals_batch(symbols: list[str], interval: str = "1D") -> tuple[di
         except Exception as exc:
             warnings.append(f"get_technicals falló para {tv_symbol}: {exc}")
     return records, warnings
+
+
+def fetch_multi_timeframe_technicals_batch(
+    symbols: list[str], timeframes: list[str] | None = None
+) -> tuple[dict[str, dict[str, Any]], list[str]]:
+    normalized = [normalize_tv_symbol(symbol) for symbol in symbols if str(symbol).strip()]
+    if not normalized:
+        return {}, ["No se recibieron símbolos para analyze_multi_timeframe_batch."]
+
+    warnings: list[str] = []
+    records: dict[str, dict[str, Any]] = {}
+    timeframe_list = timeframes or ["1D"]
+
+    raw = _extract_result_payload(
+        call_tool(
+            "analyze_multi_timeframe_batch",
+            {"symbols": normalized, "timeframes": timeframe_list},
+        )
+    )
+    parsed, parse_warnings = parse_mcp_text_payload(raw)
+    warnings.extend(parse_warnings)
+
+    requested_tv = {symbol.upper() for symbol in normalized}
+    requested_short = {symbol.split(":", 1)[-1].upper() for symbol in requested_tv}
+    key_lookup = {symbol.split(":", 1)[-1].upper(): symbol for symbol in requested_tv}
+
+    def _collect_symbol_record(symbol_key: str, item: Any) -> None:
+        if not isinstance(item, dict):
+            return
+        normalized_key = str(symbol_key or "").upper().strip()
+        if not normalized_key:
+            return
+        mapped_tv = normalized_key if ":" in normalized_key else key_lookup.get(normalized_key)
+        if not mapped_tv:
+            return
+        compact = {
+            "technical_rating": item.get("technical_rating")
+            or item.get("recommendation")
+            or item.get("rating"),
+            "rsi": item.get("rsi"),
+            "macd": item.get("macd"),
+            "summary_markdown": item.get("summary_markdown"),
+        }
+        compact = {k: v for k, v in compact.items() if v not in (None, "")}
+        if compact:
+            records[mapped_tv] = compact
+            records[mapped_tv.split(":", 1)[-1].upper()] = compact
+
+    if isinstance(parsed, dict):
+        symbol_like_keys = ("symbols", "data", "results", "items", "analysis")
+        handled = False
+        for root_key in symbol_like_keys:
+            root = parsed.get(root_key)
+            if isinstance(root, dict):
+                handled = True
+                for key, value in root.items():
+                    if isinstance(value, dict):
+                        _collect_symbol_record(str(key), value)
+            elif isinstance(root, list):
+                handled = True
+                for item in root:
+                    if isinstance(item, dict):
+                        symbol_key = item.get("symbol") or item.get("ticker") or item.get("tv_symbol")
+                        _collect_symbol_record(str(symbol_key or ""), item)
+        if not handled:
+            for key, value in parsed.items():
+                if isinstance(value, dict):
+                    _collect_symbol_record(str(key), value)
+    elif isinstance(parsed, list):
+        for item in parsed:
+            if isinstance(item, dict):
+                symbol_key = item.get("symbol") or item.get("ticker") or item.get("tv_symbol")
+                _collect_symbol_record(str(symbol_key or ""), item)
+
+    if not records:
+        raw_keys = list(parsed.keys()) if isinstance(parsed, dict) else type(parsed).__name__
+        warnings.append(f"analyze_multi_timeframe_batch schema no mapeado. raw_keys={raw_keys}")
+
+    return {
+        key: value
+        for key, value in records.items()
+        if key in requested_tv or key in requested_short
+    }, warnings
 
 
 def fetch_financials(symbol: str) -> tuple[dict[str, Any], list[str]]:

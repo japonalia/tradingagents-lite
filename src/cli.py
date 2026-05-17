@@ -36,8 +36,8 @@ def run_ticker_command(ticker: str, source: str = "yfinance") -> Path:
 
 
 
-def run_scan_nasdaq100_command(source: str = "tvremix", limit: int = 10, catalyst_top_n: int = 10, max_symbols: int | None = None) -> Path:
-    result = scan_nasdaq100(source=source, limit=limit, catalyst_top_n=catalyst_top_n, max_symbols=max_symbols)
+def run_scan_nasdaq100_command(source: str = "tvremix", limit: int = 10, catalyst_top_n: int = 10, technical_top_n: int = 25, max_symbols: int | None = None) -> Path:
+    result = scan_nasdaq100(source=source, limit=limit, catalyst_top_n=catalyst_top_n, technical_top_n=technical_top_n, max_symbols=max_symbols)
     return generate_scanner_report(
         candidates=result.get("candidates", []),
         global_warnings=result.get("global_warnings", []),
@@ -61,6 +61,7 @@ def build_parser() -> argparse.ArgumentParser:
     scan_parser = subparsers.add_parser("scan-nasdaq100", help="Escanea universo Nasdaq 100")
     scan_parser.add_argument("--source", default="tvremix", help="Fuente de datos (actual: tvremix)")
     scan_parser.add_argument("--limit", default=10, type=int, help="Cantidad de filas del ranking final a mostrar")
+    scan_parser.add_argument("--technical-top-n", default=25, type=int, help="Top preliminar para consultar técnicos (batch/fallback)")
     scan_parser.add_argument("--catalyst-top-n", default=10, type=int, help="Top preliminar para consultar noticias/earnings")
     scan_parser.add_argument("--max-symbols", default=None, type=int, help="Límite opcional del universo evaluado (solo debug)")
 
@@ -82,7 +83,7 @@ def main() -> None:
 
     if args.command == "scan-nasdaq100":
         try:
-            output_file = run_scan_nasdaq100_command(source=args.source, limit=args.limit, catalyst_top_n=args.catalyst_top_n, max_symbols=args.max_symbols)
+            output_file = run_scan_nasdaq100_command(source=args.source, limit=args.limit, catalyst_top_n=args.catalyst_top_n, technical_top_n=args.technical_top_n, max_symbols=args.max_symbols)
         except Exception as exc:
             print(f"Error al ejecutar scanner Nasdaq 100: {exc}")
             return

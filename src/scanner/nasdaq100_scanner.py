@@ -3,9 +3,10 @@ from __future__ import annotations
 from src.data_sources.nasdaq100 import load_nasdaq100_symbols
 from src.data_sources.tvremix_client import (
     fetch_earnings_calendar,
+    fetch_multi_timeframe_technicals_batch,
     fetch_news_for_symbols,
     fetch_quotes_batch,
-    fetch_technicals_batch,
+    fetch_technicals,
 )
 from src.scoring.scanner_score import score_candidate
 
@@ -23,7 +24,7 @@ def _first_non_empty(item: dict, keys: list[str]):
     return None
 
 
-def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int = 10, max_symbols: int | None = None) -> dict:
+def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int = 10, technical_top_n: int = 25, max_symbols: int | None = None) -> dict:
     if source.strip().lower() != "tvremix":
         raise ValueError("Por ahora scan-nasdaq100 solo soporta --source tvremix")
 
@@ -34,18 +35,13 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
     global_warnings: list[str] = []
 
     quotes_map, quote_warnings = fetch_quotes_batch(universe_symbols)
-    technicals_map, tech_warnings = fetch_technicals_batch(universe_symbols)
-    global_warnings.extend(quote_warnings + tech_warnings)
+    global_warnings.extend(quote_warnings)
 
     candidates: list[dict] = []
     for symbol in universe_symbols:
         key = symbol.upper()
         quote_raw = quotes_map.get(key, {})
-        tech_raw = technicals_map.get(key, {})
         quote = _extract_quote_core(quote_raw)
-        tech_data = tech_raw.get("data") if isinstance(tech_raw.get("data"), dict) else tech_raw
-        summary = tech_data.get("summary", {}) if isinstance(tech_data, dict) else {}
-        oscillators = tech_data.get("oscillators", {}) if isinstance(tech_data, dict) else {}
 
         latest_titles = []
         earnings_nearby = False
@@ -60,8 +56,8 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
             "volume": quote.get("volume"),
             "market_cap": quote.get("market_cap"),
             "pe_ratio": quote.get("pe_ratio"),
-            "technical_rating": summary.get("recommendation") or tech_data.get("recommendation"),
-            "rsi": oscillators.get("rsi") or tech_data.get("rsi"),
+            "technical_rating": None,
+            "rsi": None,
             "latest_news_titles": latest_titles,
             "news_count": len(latest_titles),
             "catalyst_summary": catalyst_summary,
@@ -87,8 +83,6 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
         candidate["missing_fields"] = missing
         if key not in quotes_map:
             candidate["warnings"].append("quote no disponible en get_quotes_batch")
-        if key not in technicals_map:
-            candidate["warnings"].append("technicals no disponibles en get_technicals")
 
         candidate["warnings"].extend(candidate["catalyst_warnings"])
         candidate.update(score_candidate(candidate))
@@ -96,6 +90,70 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
         candidates.append(candidate)
 
     ranked = sorted(candidates, key=lambda c: c.get("preliminary_score", 0), reverse=True)
+    technical_n = max(1, int(technical_top_n))
+    technical_symbols = [c["ticker"] for c in ranked[:technical_n]]
+    technical_symbol_keys = {x.upper() for x in technical_symbols}
+    technicals_map: dict = {}
+
+    try:
+        technicals_map, tech_warnings = fetch_multi_timeframe_technicals_batch(
+            technical_symbols, timeframes=["1D"]
+        )
+        global_warnings.extend(tech_warnings)
+    except Exception as exc:
+        global_warnings.append(f"analyze_multi_timeframe_batch falló globalmente: {exc}")
+
+    if not technicals_map and technical_symbols:
+        rate_limit_stopped = False
+        rate_limit_warning_added = False
+        for symbol in technical_symbols:
+            if rate_limit_stopped:
+                break
+            tv_symbol = f"NASDAQ:{symbol.upper()}" if ":" not in symbol else symbol.upper()
+            short = tv_symbol.split(":", 1)[-1].upper()
+            try:
+                technicals, tech_warnings = fetch_technicals(tv_symbol, interval="1D")
+                global_warnings.extend(tech_warnings)
+                technicals_map[tv_symbol] = technicals
+                technicals_map[short] = technicals
+            except Exception as exc:
+                msg = str(exc)
+                if "429" in msg or "Too Many Requests" in msg:
+                    rate_limit_stopped = True
+                    if not rate_limit_warning_added:
+                        global_warnings.append(
+                            "rate limit alcanzado en técnicos; se detuvieron consultas adicionales"
+                        )
+                        rate_limit_warning_added = True
+                else:
+                    global_warnings.append(f"get_technicals falló para {tv_symbol}: {exc}")
+
+    for candidate in candidates:
+        key = candidate["ticker"].upper()
+        if key not in technical_symbol_keys:
+            candidate["warnings"].append("technicals omitidos fuera de technical_top_n")
+            candidate.update(score_candidate(candidate))
+            continue
+        tech_raw = technicals_map.get(key, {})
+        tech_data = tech_raw.get("data") if isinstance(tech_raw, dict) and isinstance(tech_raw.get("data"), dict) else tech_raw
+        summary = tech_data.get("summary", {}) if isinstance(tech_data, dict) else {}
+        oscillators = tech_data.get("oscillators", {}) if isinstance(tech_data, dict) else {}
+        candidate["technical_rating"] = (
+            candidate.get("technical_rating")
+            or (tech_data.get("technical_rating") if isinstance(tech_data, dict) else None)
+            or summary.get("recommendation")
+            or (tech_data.get("recommendation") if isinstance(tech_data, dict) else None)
+        )
+        candidate["rsi"] = (
+            candidate.get("rsi")
+            or (tech_data.get("rsi") if isinstance(tech_data, dict) else None)
+            or oscillators.get("rsi")
+        )
+        if not candidate.get("technical_rating") and not candidate.get("rsi"):
+            candidate["warnings"].append("technicals no disponibles en analyze_multi_timeframe_batch/get_technicals")
+        candidate["missing_fields"] = [k for k in ["price", "change_percent", "volume", "technical_rating", "rsi"] if candidate.get(k) in (None, "")]
+        candidate.update(score_candidate(candidate))
+
     top_n = max(1, int(catalyst_top_n))
     catalyst_symbols = [c["ticker"] for c in ranked[:top_n]]
     catalyst_symbol_keys = {x.upper() for x in catalyst_symbols}
@@ -188,6 +246,9 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
         "symbols_in_universe": len(symbols),
         "candidates_evaluated": len(candidates),
         "candidates_shown": min(shown_limit, len(ranked_final)),
+        "quotes_available": sum(1 for c in candidates if c.get("price") not in (None, "")),
+        "technicals_available": sum(1 for c in candidates if c.get("technical_rating") not in (None, "") or c.get("rsi") not in (None, "")),
+        "catalysts_queried": len(catalyst_symbols),
         "candidates": ranked_final[:shown_limit],
         "global_warnings": deduped_global_warnings,
     }
