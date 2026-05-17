@@ -5,5 +5,5 @@
 3. ✅ **Capa de proveedores activa**: abstracción de fuentes con implementación productiva en `yfinance`.
 4. ✅ **TVRemix schema diagnostic completado**: inventario local de tools disponible y persistido en reportes sanitizados.
 5. ✅ **TVRemix ticker individual funcionando**: mapeo inicial de ticker TVRemix (`get_quote`, `get_technicals`, `get_financials`, `get_news`, `get_ohlcv`) con fallback a yfinance.
-6. ✅ **Paso actual**: scanner Nasdaq 100 con noticias/catalizadores básicos (`get_news` por símbolo y `get_earnings_calendar` cuando disponible), scoring reequilibrado y reporte con sección de catalizadores.
-7. 🔜 **Próximos pasos**: RVOL, premarket high/low, VWAP, scoring avanzado multicapa y salida de reporte lista para GPT.
+6. ✅ **Paso actual**: universo Nasdaq 100 ampliado y scanner optimizado contra rate limits (batch de quotes + scoring preliminar + catalizadores sólo para top N + warnings globales separados).
+7. 🔜 **Próximos pasos**: RVOL, VWAP, premarket high/low y fuerza relativa vs QQQ.

@@ -36,10 +36,11 @@ def run_ticker_command(ticker: str, source: str = "yfinance") -> Path:
 
 
 
-def run_scan_nasdaq100_command(source: str = "tvremix", limit: int = 10) -> Path:
-    candidates = scan_nasdaq100(source=source, limit=limit)
+def run_scan_nasdaq100_command(source: str = "tvremix", limit: int = 10, catalyst_top_n: int = 10) -> Path:
+    result = scan_nasdaq100(source=source, limit=limit, catalyst_top_n=catalyst_top_n)
     return generate_scanner_report(
-        candidates=candidates,
+        candidates=result.get("candidates", []),
+        global_warnings=result.get("global_warnings", []),
         output_path=Path("reports/generated/nasdaq100_scan_report.md"),
         source=source,
     )
@@ -59,6 +60,7 @@ def build_parser() -> argparse.ArgumentParser:
     scan_parser = subparsers.add_parser("scan-nasdaq100", help="Escanea universo Nasdaq 100")
     scan_parser.add_argument("--source", default="tvremix", help="Fuente de datos (actual: tvremix)")
     scan_parser.add_argument("--limit", default=10, type=int, help="Cantidad máxima de símbolos")
+    scan_parser.add_argument("--catalyst-top-n", default=10, type=int, help="Top preliminar para consultar noticias/earnings")
 
     return parser
 
@@ -78,7 +80,7 @@ def main() -> None:
 
     if args.command == "scan-nasdaq100":
         try:
-            output_file = run_scan_nasdaq100_command(source=args.source, limit=args.limit)
+            output_file = run_scan_nasdaq100_command(source=args.source, limit=args.limit, catalyst_top_n=args.catalyst_top_n)
         except Exception as exc:
             print(f"Error al ejecutar scanner Nasdaq 100: {exc}")
             return

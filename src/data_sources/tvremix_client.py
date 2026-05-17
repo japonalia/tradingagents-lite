@@ -353,8 +353,11 @@ def fetch_news(symbol: str, limit: int = 5) -> tuple[list[dict[str, Any]], list[
 def fetch_news_for_symbols(symbols: list[str], limit_per_symbol: int = 3) -> tuple[dict[str, list[dict[str, Any]]], list[str]]:
     warnings: list[str] = []
     news_map: dict[str, list[dict[str, Any]]] = {}
+    rate_limited = False
 
     for symbol in symbols:
+        if rate_limited:
+            break
         tv_symbol = normalize_tv_symbol(symbol)
         short = tv_symbol.split(":", 1)[-1].upper()
         try:
@@ -365,7 +368,12 @@ def fetch_news_for_symbols(symbols: list[str], limit_per_symbol: int = 3) -> tup
             if not news:
                 warnings.append(f"{tv_symbol}: sin titulares recientes en get_news.")
         except Exception as exc:
-            warnings.append(f"get_news falló para {tv_symbol}: {exc}")
+            msg = str(exc)
+            if "429" in msg or "Too Many Requests" in msg:
+                warnings.append("rate limit alcanzado en get_news; se detienen consultas de noticias.")
+                rate_limited = True
+            else:
+                warnings.append(f"get_news falló para {tv_symbol}: {exc}")
             news_map[tv_symbol.upper()] = []
             news_map[short] = []
 
@@ -375,8 +383,11 @@ def fetch_news_for_symbols(symbols: list[str], limit_per_symbol: int = 3) -> tup
 def fetch_earnings_calendar(symbols: list[str]) -> tuple[dict[str, list[dict[str, Any]]], list[str]]:
     warnings: list[str] = []
     earnings_map: dict[str, list[dict[str, Any]]] = {}
+    rate_limited = False
 
     for symbol in symbols:
+        if rate_limited:
+            break
         tv_symbol = normalize_tv_symbol(symbol)
         short = tv_symbol.split(":", 1)[-1].upper()
         try:
@@ -389,7 +400,12 @@ def fetch_earnings_calendar(symbols: list[str]) -> tuple[dict[str, list[dict[str
             if not items:
                 warnings.append(f"{tv_symbol}: get_earnings_calendar sin datos parseables.")
         except Exception as exc:
-            warnings.append(f"get_earnings_calendar no disponible para {tv_symbol}: {exc}")
+            msg = str(exc)
+            if "429" in msg or "Too Many Requests" in msg:
+                warnings.append("rate limit alcanzado en get_earnings_calendar; se detienen consultas de earnings.")
+                rate_limited = True
+            else:
+                warnings.append(f"get_earnings_calendar no disponible para {tv_symbol}: {exc}")
             earnings_map[tv_symbol.upper()] = []
             earnings_map[short] = []
 

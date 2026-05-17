@@ -23,47 +23,33 @@ def _first_non_empty(item: dict, keys: list[str]):
     return None
 
 
-def scan_nasdaq100(source: str = "tvremix", limit: int = 10) -> list[dict]:
+def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int = 10) -> dict:
     if source.strip().lower() != "tvremix":
         raise ValueError("Por ahora scan-nasdaq100 solo soporta --source tvremix")
 
     symbols = load_nasdaq100_symbols()
     selected = symbols[: max(1, int(limit))]
+    global_warnings: list[str] = []
 
     quotes_map, quote_warnings = fetch_quotes_batch(selected)
     technicals_map, tech_warnings = fetch_technicals_batch(selected)
-    news_map, news_warnings = fetch_news_for_symbols(selected, limit_per_symbol=3)
-    earnings_map, earnings_warnings = fetch_earnings_calendar(selected)
+    global_warnings.extend(quote_warnings + tech_warnings)
 
     candidates: list[dict] = []
     for symbol in selected:
         key = symbol.upper()
         quote_raw = quotes_map.get(key, {})
         tech_raw = technicals_map.get(key, {})
-        news_items = news_map.get(key, [])
-        earnings_items = earnings_map.get(key, [])
-
         quote = _extract_quote_core(quote_raw)
         tech_data = tech_raw.get("data") if isinstance(tech_raw.get("data"), dict) else tech_raw
         summary = tech_data.get("summary", {}) if isinstance(tech_data, dict) else {}
         oscillators = tech_data.get("oscillators", {}) if isinstance(tech_data, dict) else {}
 
-        latest_titles = [
-            _first_non_empty(item, ["title", "headline", "name", "text"])
-            for item in news_items
-            if isinstance(item, dict)
-        ]
-        latest_titles = [str(x) for x in latest_titles if x][:3]
-
-        earnings_nearby = bool(earnings_items)
+        latest_titles = []
+        earnings_nearby = False
+        earnings_items = []
         catalyst_summary = "Sin catalizador confirmado"
         has_recent_catalyst = False
-        if latest_titles:
-            has_recent_catalyst = True
-            catalyst_summary = f"{len(latest_titles)} titulares recientes"
-        if earnings_nearby:
-            has_recent_catalyst = True
-            catalyst_summary = (catalyst_summary + " + earnings cercano") if latest_titles else "Earnings cercano"
 
         candidate = {
             "ticker": symbol,
@@ -104,11 +90,72 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10) -> list[dict]:
 
         candidate["warnings"].extend(candidate["catalyst_warnings"])
         candidate.update(score_candidate(candidate))
+        candidate["preliminary_score"] = candidate.get("total_score", 0)
         candidates.append(candidate)
 
-    shared_warnings = quote_warnings + tech_warnings + news_warnings + earnings_warnings
-    if shared_warnings:
-        for candidate in candidates:
-            candidate["warnings"].extend(shared_warnings)
+    ranked = sorted(candidates, key=lambda c: c.get("preliminary_score", 0), reverse=True)
+    top_n = max(1, int(catalyst_top_n))
+    catalyst_symbols = [c["ticker"] for c in ranked[:top_n]]
+    catalyst_symbol_keys = {x.upper() for x in catalyst_symbols}
 
-    return sorted(candidates, key=lambda c: c.get("total_score", 0), reverse=True)
+    news_map: dict = {}
+    earnings_map: dict = {}
+    rate_limit_reached = False
+
+    try:
+        news_map, news_warnings = fetch_news_for_symbols(catalyst_symbols, limit_per_symbol=3)
+        global_warnings.extend(news_warnings)
+    except Exception as exc:
+        msg = str(exc)
+        if "429" in msg or "Too Many Requests" in msg:
+            rate_limit_reached = True
+            global_warnings.append("rate limit alcanzado: se omiten noticias/earnings restantes")
+        else:
+            global_warnings.append(f"get_news fallo global: {exc}")
+
+    if not rate_limit_reached:
+        try:
+            earnings_map, earnings_warnings = fetch_earnings_calendar(catalyst_symbols)
+            global_warnings.extend(earnings_warnings)
+        except Exception as exc:
+            msg = str(exc)
+            if "429" in msg or "Too Many Requests" in msg:
+                rate_limit_reached = True
+                global_warnings.append("rate limit alcanzado: se omiten noticias/earnings restantes")
+            else:
+                global_warnings.append(f"get_earnings_calendar fallo global: {exc}")
+
+    for candidate in candidates:
+        key = candidate["ticker"].upper()
+        if key not in catalyst_symbol_keys:
+            candidate.update(score_candidate(candidate))
+            continue
+
+        news_items = news_map.get(key, [])
+        earnings_items = earnings_map.get(key, [])
+        latest_titles = [
+            _first_non_empty(item, ["title", "headline", "name", "text"])
+            for item in news_items
+            if isinstance(item, dict)
+        ]
+        latest_titles = [str(x) for x in latest_titles if x][:3]
+        earnings_nearby = bool(earnings_items)
+        has_recent_catalyst = bool(latest_titles or earnings_nearby)
+        if latest_titles and earnings_nearby:
+            catalyst_summary = f"{len(latest_titles)} titulares recientes + earnings cercano"
+        elif latest_titles:
+            catalyst_summary = f"{len(latest_titles)} titulares recientes"
+        elif earnings_nearby:
+            catalyst_summary = "Earnings cercano"
+        else:
+            catalyst_summary = "Sin catalizador confirmado"
+
+        candidate["latest_news_titles"] = latest_titles
+        candidate["news_count"] = len(latest_titles)
+        candidate["earnings_items"] = earnings_items
+        candidate["earnings_nearby"] = earnings_nearby
+        candidate["has_recent_catalyst"] = has_recent_catalyst
+        candidate["catalyst_summary"] = catalyst_summary
+        candidate.update(score_candidate(candidate))
+
+    return {"candidates": sorted(candidates, key=lambda c: c.get("total_score", 0), reverse=True), "global_warnings": global_warnings}
