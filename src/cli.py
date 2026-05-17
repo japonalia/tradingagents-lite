@@ -39,7 +39,7 @@ def build_parser() -> argparse.ArgumentParser:
     ticker_parser.add_argument(
         "--source",
         default="yfinance",
-        help="Fuente de datos (por ahora solo: yfinance)",
+        help="Fuente de datos (opciones: yfinance, tvremix)",
     )
 
     return parser
