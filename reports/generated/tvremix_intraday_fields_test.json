@@ -1,0 +1,424 @@
+{
+  "purpose": "Diagnóstico experimental de campos intradía en TVRemix.",
+  "symbols": [
+    "NASDAQ:NVDA",
+    "NASDAQ:MSFT",
+    "NASDAQ:TSLA",
+    "NASDAQ:ZS",
+    "NASDAQ:QQQ"
+  ],
+  "tools": {
+    "get_quote": {
+      "NASDAQ:NVDA": {
+        "status": "error",
+        "arguments": {
+          "symbol": "NASDAQ:NVDA"
+        },
+        "error": "TVRemix MCP no está configurado. Define TVREMIX_MCP_URL y TVREMIX_API_KEY."
+      },
+      "NASDAQ:MSFT": {
+        "status": "error",
+        "arguments": {
+          "symbol": "NASDAQ:MSFT"
+        },
+        "error": "TVRemix MCP no está configurado. Define TVREMIX_MCP_URL y TVREMIX_API_KEY."
+      },
+      "NASDAQ:TSLA": {
+        "status": "error",
+        "arguments": {
+          "symbol": "NASDAQ:TSLA"
+        },
+        "error": "TVRemix MCP no está configurado. Define TVREMIX_MCP_URL y TVREMIX_API_KEY."
+      },
+      "NASDAQ:ZS": {
+        "status": "error",
+        "arguments": {
+          "symbol": "NASDAQ:ZS"
+        },
+        "error": "TVRemix MCP no está configurado. Define TVREMIX_MCP_URL y TVREMIX_API_KEY."
+      },
+      "NASDAQ:QQQ": {
+        "status": "error",
+        "arguments": {
+          "symbol": "NASDAQ:QQQ"
+        },
+        "error": "TVRemix MCP no está configurado. Define TVREMIX_MCP_URL y TVREMIX_API_KEY."
+      }
+    },
+    "get_symbol_data": {
+      "status_by_symbol": {
+        "NASDAQ:NVDA": {
+          "status": "error",
+          "arguments": {
+            "symbol": "NASDAQ:NVDA",
+            "columns": [
+              "close",
+              "change",
+              "change_abs",
+              "volume",
+              "relative_volume_10d_calc",
+              "relative_volume_intraday_5m",
+              "average_volume_10d_calc",
+              "VWAP",
+              "premarket_change",
+              "premarket_gap",
+              "premarket_high",
+              "premarket_low",
+              "gap",
+              "market_cap_basic",
+              "price_earnings_ttm"
+            ]
+          },
+          "error": "TVRemix MCP no está configurado. Define TVREMIX_MCP_URL y TVREMIX_API_KEY."
+        },
+        "NASDAQ:MSFT": {
+          "status": "error",
+          "arguments": {
+            "symbol": "NASDAQ:MSFT",
+            "columns": [
+              "close",
+              "change",
+              "change_abs",
+              "volume",
+              "relative_volume_10d_calc",
+              "relative_volume_intraday_5m",
+              "average_volume_10d_calc",
+              "VWAP",
+              "premarket_change",
+              "premarket_gap",
+              "premarket_high",
+              "premarket_low",
+              "gap",
+              "market_cap_basic",
+              "price_earnings_ttm"
+            ]
+          },
+          "error": "TVRemix MCP no está configurado. Define TVREMIX_MCP_URL y TVREMIX_API_KEY."
+        },
+        "NASDAQ:TSLA": {
+          "status": "error",
+          "arguments": {
+            "symbol": "NASDAQ:TSLA",
+            "columns": [
+              "close",
+              "change",
+              "change_abs",
+              "volume",
+              "relative_volume_10d_calc",
+              "relative_volume_intraday_5m",
+              "average_volume_10d_calc",
+              "VWAP",
+              "premarket_change",
+              "premarket_gap",
+              "premarket_high",
+              "premarket_low",
+              "gap",
+              "market_cap_basic",
+              "price_earnings_ttm"
+            ]
+          },
+          "error": "TVRemix MCP no está configurado. Define TVREMIX_MCP_URL y TVREMIX_API_KEY."
+        },
+        "NASDAQ:ZS": {
+          "status": "error",
+          "arguments": {
+            "symbol": "NASDAQ:ZS",
+            "columns": [
+              "close",
+              "change",
+              "change_abs",
+              "volume",
+              "relative_volume_10d_calc",
+              "relative_volume_intraday_5m",
+              "average_volume_10d_calc",
+              "VWAP",
+              "premarket_change",
+              "premarket_gap",
+              "premarket_high",
+              "premarket_low",
+              "gap",
+              "market_cap_basic",
+              "price_earnings_ttm"
+            ]
+          },
+          "error": "TVRemix MCP no está configurado. Define TVREMIX_MCP_URL y TVREMIX_API_KEY."
+        },
+        "NASDAQ:QQQ": {
+          "status": "error",
+          "arguments": {
+            "symbol": "NASDAQ:QQQ",
+            "columns": [
+              "close",
+              "change",
+              "change_abs",
+              "volume",
+              "relative_volume_10d_calc",
+              "relative_volume_intraday_5m",
+              "average_volume_10d_calc",
+              "VWAP",
+              "premarket_change",
+              "premarket_gap",
+              "premarket_high",
+              "premarket_low",
+              "gap",
+              "market_cap_basic",
+              "price_earnings_ttm"
+            ]
+          },
+          "error": "TVRemix MCP no está configurado. Define TVREMIX_MCP_URL y TVREMIX_API_KEY."
+        }
+      },
+      "candidate_columns": [
+        "close",
+        "change",
+        "change_abs",
+        "volume",
+        "relative_volume_10d_calc",
+        "relative_volume_intraday_5m",
+        "average_volume_10d_calc",
+        "VWAP",
+        "premarket_change",
+        "premarket_gap",
+        "premarket_high",
+        "premarket_low",
+        "gap",
+        "market_cap_basic",
+        "price_earnings_ttm"
+      ]
+    },
+    "run_screener": {
+      "status": "error",
+      "arguments": {
+        "market": "america",
+        "limit": 5,
+        "columns": [
+          "close",
+          "change",
+          "change_abs",
+          "volume",
+          "relative_volume_10d_calc",
+          "average_volume_10d_calc",
+          "VWAP",
+          "premarket_change",
+          "premarket_gap",
+          "premarket_high",
+          "premarket_low",
+          "gap"
+        ]
+      },
+      "error": "TVRemix MCP no está configurado. Define TVREMIX_MCP_URL y TVREMIX_API_KEY."
+    },
+    "analyze_multi_timeframe_batch": {
+      "status": "error",
+      "arguments": {
+        "symbols": [
+          "NASDAQ:NVDA",
+          "NASDAQ:MSFT",
+          "NASDAQ:TSLA",
+          "NASDAQ:ZS",
+          "NASDAQ:QQQ"
+        ],
+        "timeframes": [
+          "5m",
+          "15m",
+          "1h",
+          "1D"
+        ]
+      },
+      "error": "TVRemix MCP no está configurado. Define TVREMIX_MCP_URL y TVREMIX_API_KEY."
+    },
+    "get_ohlcv": {
+      "NASDAQ:NVDA": {
+        "1m": {
+          "status": "error",
+          "arguments": {
+            "symbol": "NASDAQ:NVDA",
+            "interval": "1m",
+            "count": 50
+          },
+          "error": "TVRemix MCP no está configurado. Define TVREMIX_MCP_URL y TVREMIX_API_KEY."
+        },
+        "5m": {
+          "status": "error",
+          "arguments": {
+            "symbol": "NASDAQ:NVDA",
+            "interval": "5m",
+            "count": 50
+          },
+          "error": "TVRemix MCP no está configurado. Define TVREMIX_MCP_URL y TVREMIX_API_KEY."
+        },
+        "15m": {
+          "status": "error",
+          "arguments": {
+            "symbol": "NASDAQ:NVDA",
+            "interval": "15m",
+            "count": 50
+          },
+          "error": "TVRemix MCP no está configurado. Define TVREMIX_MCP_URL y TVREMIX_API_KEY."
+        },
+        "1D": {
+          "status": "error",
+          "arguments": {
+            "symbol": "NASDAQ:NVDA",
+            "interval": "1D",
+            "count": 50
+          },
+          "error": "TVRemix MCP no está configurado. Define TVREMIX_MCP_URL y TVREMIX_API_KEY."
+        }
+      },
+      "NASDAQ:MSFT": {
+        "1m": {
+          "status": "error",
+          "arguments": {
+            "symbol": "NASDAQ:MSFT",
+            "interval": "1m",
+            "count": 50
+          },
+          "error": "TVRemix MCP no está configurado. Define TVREMIX_MCP_URL y TVREMIX_API_KEY."
+        },
+        "5m": {
+          "status": "error",
+          "arguments": {
+            "symbol": "NASDAQ:MSFT",
+            "interval": "5m",
+            "count": 50
+          },
+          "error": "TVRemix MCP no está configurado. Define TVREMIX_MCP_URL y TVREMIX_API_KEY."
+        },
+        "15m": {
+          "status": "error",
+          "arguments": {
+            "symbol": "NASDAQ:MSFT",
+            "interval": "15m",
+            "count": 50
+          },
+          "error": "TVRemix MCP no está configurado. Define TVREMIX_MCP_URL y TVREMIX_API_KEY."
+        },
+        "1D": {
+          "status": "error",
+          "arguments": {
+            "symbol": "NASDAQ:MSFT",
+            "interval": "1D",
+            "count": 50
+          },
+          "error": "TVRemix MCP no está configurado. Define TVREMIX_MCP_URL y TVREMIX_API_KEY."
+        }
+      },
+      "NASDAQ:TSLA": {
+        "1m": {
+          "status": "error",
+          "arguments": {
+            "symbol": "NASDAQ:TSLA",
+            "interval": "1m",
+            "count": 50
+          },
+          "error": "TVRemix MCP no está configurado. Define TVREMIX_MCP_URL y TVREMIX_API_KEY."
+        },
+        "5m": {
+          "status": "error",
+          "arguments": {
+            "symbol": "NASDAQ:TSLA",
+            "interval": "5m",
+            "count": 50
+          },
+          "error": "TVRemix MCP no está configurado. Define TVREMIX_MCP_URL y TVREMIX_API_KEY."
+        },
+        "15m": {
+          "status": "error",
+          "arguments": {
+            "symbol": "NASDAQ:TSLA",
+            "interval": "15m",
+            "count": 50
+          },
+          "error": "TVRemix MCP no está configurado. Define TVREMIX_MCP_URL y TVREMIX_API_KEY."
+        },
+        "1D": {
+          "status": "error",
+          "arguments": {
+            "symbol": "NASDAQ:TSLA",
+            "interval": "1D",
+            "count": 50
+          },
+          "error": "TVRemix MCP no está configurado. Define TVREMIX_MCP_URL y TVREMIX_API_KEY."
+        }
+      },
+      "NASDAQ:ZS": {
+        "1m": {
+          "status": "error",
+          "arguments": {
+            "symbol": "NASDAQ:ZS",
+            "interval": "1m",
+            "count": 50
+          },
+          "error": "TVRemix MCP no está configurado. Define TVREMIX_MCP_URL y TVREMIX_API_KEY."
+        },
+        "5m": {
+          "status": "error",
+          "arguments": {
+            "symbol": "NASDAQ:ZS",
+            "interval": "5m",
+            "count": 50
+          },
+          "error": "TVRemix MCP no está configurado. Define TVREMIX_MCP_URL y TVREMIX_API_KEY."
+        },
+        "15m": {
+          "status": "error",
+          "arguments": {
+            "symbol": "NASDAQ:ZS",
+            "interval": "15m",
+            "count": 50
+          },
+          "error": "TVRemix MCP no está configurado. Define TVREMIX_MCP_URL y TVREMIX_API_KEY."
+        },
+        "1D": {
+          "status": "error",
+          "arguments": {
+            "symbol": "NASDAQ:ZS",
+            "interval": "1D",
+            "count": 50
+          },
+          "error": "TVRemix MCP no está configurado. Define TVREMIX_MCP_URL y TVREMIX_API_KEY."
+        }
+      },
+      "NASDAQ:QQQ": {
+        "1m": {
+          "status": "error",
+          "arguments": {
+            "symbol": "NASDAQ:QQQ",
+            "interval": "1m",
+            "count": 50
+          },
+          "error": "TVRemix MCP no está configurado. Define TVREMIX_MCP_URL y TVREMIX_API_KEY."
+        },
+        "5m": {
+          "status": "error",
+          "arguments": {
+            "symbol": "NASDAQ:QQQ",
+            "interval": "5m",
+            "count": 50
+          },
+          "error": "TVRemix MCP no está configurado. Define TVREMIX_MCP_URL y TVREMIX_API_KEY."
+        },
+        "15m": {
+          "status": "error",
+          "arguments": {
+            "symbol": "NASDAQ:QQQ",
+            "interval": "15m",
+            "count": 50
+          },
+          "error": "TVRemix MCP no está configurado. Define TVREMIX_MCP_URL y TVREMIX_API_KEY."
+        },
+        "1D": {
+          "status": "error",
+          "arguments": {
+            "symbol": "NASDAQ:QQQ",
+            "interval": "1D",
+            "count": 50
+          },
+          "error": "TVRemix MCP no está configurado. Define TVREMIX_MCP_URL y TVREMIX_API_KEY."
+        }
+      }
+    }
+  },
+  "warnings": []
+}

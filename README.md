@@ -158,3 +158,5 @@ Parámetros del scanner Nasdaq 100:
 Recomendación operativa del scanner:
 - Primera pasada: usar scanner sin earnings (default) para maximizar estabilidad y legibilidad del reporte.
 - Activar `--no-skip-earnings` solo cuando necesites confirmar eventos cercanos y aceptes mayor ruido/riesgo de rate limit.
+
+- Diagnóstico intradía experimental: `PYTHONPATH=. python tools/test_tvremix_intraday_fields.py`

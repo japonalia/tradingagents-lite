@@ -7,3 +7,8 @@
 5. ✅ **TVRemix ticker individual funcionando**: mapeo inicial de ticker TVRemix (`get_quote`, `get_technicals`, `get_financials`, `get_news`, `get_ohlcv`) con fallback a yfinance.
 6. ✅ **Paso actual**: limpieza del reporte del scanner Nasdaq 100 y control de ruido de catalizadores (warnings cortos por ticker, agrupación global de ruido news/earnings y flags CLI para omitir fuentes ruidosas).
 7. 🔜 **Próximos pasos**: RVOL, VWAP, premarket high/low y fuerza relativa vs QQQ.
+
+
+## Estado intradía TVRemix (experimental)
+- Paso actual: diagnóstico de disponibilidad de RVOL, VWAP y premarket en tools de TVRemix.
+- Próximos pasos: mapear campos útiles validados e integrarlos progresivamente en el scanner de acción del día.
