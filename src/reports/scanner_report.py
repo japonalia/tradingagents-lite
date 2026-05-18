@@ -28,6 +28,8 @@ def generate_scanner_report(candidates, output_path, source="tvremix", global_wa
     technicals_fallback_individual = int((metrics or {}).get("technicals_fallback_individual", 0))
     technicals_not_available = int((metrics or {}).get("technicals_not_available", 0))
     scanner_mode = str((metrics or {}).get("scanner_mode", "degraded")).strip() or "degraded"
+    qqq_change_percent = (metrics or {}).get("qqq_change_percent")
+    relative_strength_available = int((metrics or {}).get("relative_strength_available", 0))
     complete = sum(1 for c in candidates if not c.get("missing_fields"))
     missing = total - complete
     unavailable = sorted({field for c in candidates for field in (c.get("missing_fields") or [])})
@@ -64,14 +66,16 @@ def generate_scanner_report(candidates, output_path, source="tvremix", global_wa
         f"- Técnicos fallback individuales: **{technicals_fallback_individual}**",
         f"- Técnicos no disponibles: **{technicals_not_available}**",
         f"- Catalizadores consultados: **{catalysts_queried}**",
+        f"- QQQ referencia: **{_fmt(qqq_change_percent)}**",
+        f"- Fuerza relativa disponible: **{relative_strength_available}/{total}**",
         f"- Completas: **{complete}**",
         f"- Con datos faltantes: **{missing}** (incluye símbolos fuera del subconjunto técnico consultado)",
         f"- Datos no disponibles detectados: **{', '.join(unavailable) if unavailable else 'ninguno'}**",
         "",
         "## Top candidatas",
         "",
-        "| Ranking | Ticker | Precio | Variación % | Volumen | RVOL | VWAP | Gap/PM | Rating técnico | RSI | Catalizador | Score | Riesgo / warnings |",
-        "|---:|---|---:|---:|---:|---:|---:|---|---|---:|---|---:|---|",
+        "| Ranking | Ticker | Precio | Variación % | RS vs QQQ | Volumen | RVOL | VWAP | Gap/PM | Rating técnico | RSI | Catalizador | Score | Riesgo / warnings |",
+        "|---:|---|---:|---:|---:|---:|---:|---:|---|---|---:|---|---:|---|",
     ])
 
     sorted_candidates = sorted(candidates, key=lambda x: x.get("total_score", 0), reverse=True)
@@ -83,7 +87,16 @@ def generate_scanner_report(candidates, output_path, source="tvremix", global_wa
                 local_warnings.append(text[:120])
         warnings = "; ".join(local_warnings[:3]) or "-"
         gap_pm = f"g:{_fmt(c.get('gap'))}/pm:{_fmt(c.get('premarket_gap'))}"
-        lines.append(f"| {idx} | {_fmt(c.get('ticker'))} | {_fmt(c.get('price'))} | {_fmt(c.get('change_percent'))} | {_fmt(c.get('volume'))} | {_fmt(c.get('rvol_10d'))} | {_fmt(c.get('vwap'))} | {gap_pm} | {_fmt(c.get('technical_rating'))} | {_fmt(c.get('rsi'))} | {_fmt(c.get('catalyst_summary'))} | {_fmt(c.get('total_score'))} | {warnings} |")
+        lines.append(f"| {idx} | {_fmt(c.get('ticker'))} | {_fmt(c.get('price'))} | {_fmt(c.get('change_percent'))} | {_fmt(c.get('relative_strength_vs_qqq'))} | {_fmt(c.get('volume'))} | {_fmt(c.get('rvol_10d'))} | {_fmt(c.get('vwap'))} | {gap_pm} | {_fmt(c.get('technical_rating'))} | {_fmt(c.get('rsi'))} | {_fmt(c.get('catalyst_summary'))} | {_fmt(c.get('total_score'))} | {warnings} |")
+
+    lines.extend(["", "## Fuerza relativa vs QQQ", ""])
+    rs_candidates = [c for c in sorted_candidates if c.get("relative_strength_vs_qqq") not in (None, "")][:10]
+    if rs_candidates:
+        lines.append("Top 10:")
+        for c in rs_candidates:
+            lines.append(f"- {_fmt(c.get('ticker'))}: cambio%={_fmt(c.get('change_percent'))}, QQQ%={_fmt(c.get('qqq_change_percent'))}, RS vs QQQ={_fmt(c.get('relative_strength_vs_qqq'))}")
+    else:
+        lines.append("- Fuerza relativa no disponible en esta corrida.")
 
     lines.extend(["", "## Warnings globales", ""])
     if gw:
