@@ -184,7 +184,7 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
         candidate["missing_fields"] = [k for k in ["price", "change_percent", "volume", "technical_rating", "rsi"] if candidate.get(k) in (None, "")]
         candidate.update(score_candidate(candidate))
 
-    top_n = max(1, int(catalyst_top_n))
+    top_n = max(0, int(catalyst_top_n))
     catalyst_symbols = [c["ticker"] for c in ranked[:top_n]]
     catalyst_symbol_keys = {x.upper() for x in catalyst_symbols}
 
@@ -292,16 +292,28 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
     )
     technical_unavailable = max(len(technical_symbols) - technical_batch_available, 0)
 
+    quotes_available = sum(1 for c in candidates if c.get("price") not in (None, ""))
+    technicals_available = sum(1 for c in candidates if c.get("technical_rating") not in (None, "") or c.get("rsi") not in (None, ""))
+    quote_or_technical_degraded = (
+        quotes_available < len(candidates)
+        or technical_batch_available < len(technical_symbols)
+    )
+    catalysts_enabled = (not skip_news) or (not skip_earnings and top_n > 0)
+    scanner_mode = "technical_plus_catalysts" if catalysts_enabled else "technical_only"
+    if quote_or_technical_degraded:
+        scanner_mode = "degraded"
+
     return {
         "symbols_in_universe": len(symbols),
         "candidates_evaluated": len(candidates),
         "candidates_shown": min(shown_limit, len(ranked_final)),
-        "quotes_available": sum(1 for c in candidates if c.get("price") not in (None, "")),
-        "technicals_available": sum(1 for c in candidates if c.get("technical_rating") not in (None, "") or c.get("rsi") not in (None, "")),
+        "quotes_available": quotes_available,
+        "technicals_available": technicals_available,
         "technicals_batch_available": technical_batch_available,
         "technicals_fallback_individual": technical_fallback_count,
         "technicals_not_available": technical_unavailable,
         "catalysts_queried": len(catalyst_symbols),
+        "scanner_mode": scanner_mode,
         "candidates": ranked_final[:shown_limit],
         "global_warnings": deduped_global_warnings,
     }

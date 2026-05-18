@@ -21,6 +21,7 @@ def generate_scanner_report(candidates, output_path, source="tvremix", global_wa
     technicals_batch_available = int((metrics or {}).get("technicals_batch_available", 0))
     technicals_fallback_individual = int((metrics or {}).get("technicals_fallback_individual", 0))
     technicals_not_available = int((metrics or {}).get("technicals_not_available", 0))
+    scanner_mode = str((metrics or {}).get("scanner_mode", "degraded")).strip() or "degraded"
     complete = sum(1 for c in candidates if not c.get("missing_fields"))
     missing = total - complete
     unavailable = sorted({field for c in candidates for field in (c.get("missing_fields") or [])})
@@ -33,6 +34,34 @@ def generate_scanner_report(candidates, output_path, source="tvremix", global_wa
         f"- Fecha/hora generación (local): **{datetime.now().astimezone().isoformat(timespec='seconds')}**",
         f"- Fuente primaria: **{source}**",
         "",
+        "## Modo del scanner",
+    ]
+
+    if scanner_mode == "technical_only":
+        lines.extend(
+            [
+                "- technical_only: Scanner técnico sin catalizadores.",
+                "- Este ranking prioriza movimiento, volumen, rating técnico y estructura técnica. No valida catalizador real.",
+                "",
+            ]
+        )
+    elif scanner_mode == "technical_plus_catalysts":
+        lines.extend(
+            [
+                "- technical_plus_catalysts: Scanner técnico con catalizadores básicos.",
+                "",
+            ]
+        )
+    else:
+        lines.extend(
+            [
+                "- degraded: Scanner degradado por fallos de datos.",
+                "",
+            ]
+        )
+
+    lines.extend(
+        [
         "## Calidad de datos",
         f"- Símbolos en universo: **{symbols_in_universe}**",
         f"- Candidatas evaluadas: **{total}**",
@@ -51,7 +80,7 @@ def generate_scanner_report(candidates, output_path, source="tvremix", global_wa
         "",
         "| Ranking | Ticker | Precio | Variación % | Volumen | Rating técnico | RSI | Catalizador | Score | Riesgo / warnings |",
         "|---:|---|---:|---:|---:|---|---:|---|---:|---|",
-    ]
+    ])
 
     sorted_candidates = sorted(candidates, key=lambda x: x.get("total_score", 0), reverse=True)
 
@@ -114,6 +143,7 @@ def generate_scanner_report(candidates, output_path, source="tvremix", global_wa
             "Este reporte es informativo y no constituye una orden, recomendación ni señal ejecutable de trading.",
             "",
             "VWAP, RVOL y premarket high/low siguen no disponibles en esta versión.",
+            "No usar como señal ejecutable intradía.",
             "",
         ]
     )
