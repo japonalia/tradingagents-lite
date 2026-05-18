@@ -20,6 +20,8 @@ def generate_scanner_report(candidates, output_path, source="tvremix", global_wa
     rvol_available = int((metrics or {}).get("rvol_available", 0))
     vwap_available = int((metrics or {}).get("vwap_available", 0))
     premarket_available = int((metrics or {}).get("premarket_available", 0))
+    intraday_via_run_screener = int((metrics or {}).get("intraday_via_run_screener", 0))
+    intraday_via_get_symbol_data = int((metrics or {}).get("intraday_via_get_symbol_data", 0))
     technicals_available = int((metrics or {}).get("technicals_available", 0))
     catalysts_queried = int((metrics or {}).get("catalysts_queried", 0))
     technicals_batch_available = int((metrics or {}).get("technicals_batch_available", 0))
@@ -39,7 +41,7 @@ def generate_scanner_report(candidates, output_path, source="tvremix", global_wa
     elif scanner_mode == "technical_plus_catalysts":
         lines.extend(["- technical_plus_catalysts: Scanner técnico con catalizadores básicos.", ""])
     elif scanner_mode == "technical_intraday":
-        lines.extend(["- technical_intraday: Scanner técnico con capa intradía (run_screener).", ""])
+        lines.extend(["- technical_intraday: Scanner técnico con capa intradía (run_screener + fallback get_symbol_data para Top preliminar).", ""])
     elif scanner_mode == "intraday_plus_catalysts":
         lines.extend(["- intraday_plus_catalysts: Scanner intradía + catalizadores.", ""])
     else:
@@ -55,6 +57,8 @@ def generate_scanner_report(candidates, output_path, source="tvremix", global_wa
         f"- RVOL disponibles: **{rvol_available}**",
         f"- VWAP disponibles: **{vwap_available}**",
         f"- Premarket disponibles: **{premarket_available}**",
+        f"- Intradía vía run_screener: **{intraday_via_run_screener}**",
+        f"- Intradía vía get_symbol_data: **{intraday_via_get_symbol_data}**",
         f"- Técnicos disponibles: **{technicals_available}**",
         f"- Técnicos batch disponibles: **{technicals_batch_available}**",
         f"- Técnicos fallback individuales: **{technicals_fallback_individual}**",

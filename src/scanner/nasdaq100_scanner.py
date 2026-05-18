@@ -4,6 +4,7 @@ from src.data_sources.nasdaq100 import load_nasdaq100_symbols
 from src.data_sources.tvremix_client import (
     fetch_earnings_calendar,
     fetch_intraday_screener_fields,
+    fetch_intraday_symbol_data_batch,
     fetch_multi_timeframe_technicals_batch,
     fetch_news_for_symbols,
     fetch_quotes_batch,
@@ -25,7 +26,7 @@ def _first_non_empty(item: dict, keys: list[str]):
     return None
 
 
-def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int = 10, technical_top_n: int = 25, max_symbols: int | None = None, skip_news: bool = False, skip_earnings: bool = True, use_intraday: bool = True) -> dict:
+def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int = 10, technical_top_n: int = 25, intraday_top_n: int = 10, max_symbols: int | None = None, skip_news: bool = False, skip_earnings: bool = True, use_intraday: bool = True) -> dict:
     if source.strip().lower() != "tvremix":
         raise ValueError("Por ahora scan-nasdaq100 solo soporta --source tvremix")
 
@@ -39,11 +40,13 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
     global_warnings.extend(quote_warnings)
     intraday_map: dict[str, dict] = {}
     intraday_diagnostics: dict = {}
+    intraday_source_counts = {"run_screener": 0, "get_symbol_data": 0}
     if use_intraday:
         intraday_map, intraday_warnings, intraday_diagnostics = fetch_intraday_screener_fields(
             universe_symbols
         )
         global_warnings.extend(intraday_warnings)
+        intraday_source_counts["run_screener"] = int(intraday_diagnostics.get("screener_symbols_matched", 0))
 
     candidates: list[dict] = []
     for symbol in universe_symbols:
@@ -65,18 +68,21 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
             "volume": quote.get("volume"),
             "market_cap": quote.get("market_cap") or intraday_raw.get("market_cap_basic"),
             "pe_ratio": quote.get("pe_ratio") or intraday_raw.get("price_earnings_ttm"),
-            "intraday_close": intraday_raw.get("close"),
-            "intraday_change": intraday_raw.get("change"),
-            "intraday_change_abs": intraday_raw.get("change_abs"),
-            "intraday_volume": intraday_raw.get("volume"),
-            "avg_volume_10d": intraday_raw.get("average_volume_10d_calc"),
-            "rvol_10d": intraday_raw.get("relative_volume_10d_calc"),
-            "vwap": intraday_raw.get("VWAP"),
+            "intraday_close": intraday_raw.get("intraday_close", intraday_raw.get("close")),
+            "intraday_change": intraday_raw.get("intraday_change", intraday_raw.get("change")),
+            "intraday_change_abs": intraday_raw.get("intraday_change_abs", intraday_raw.get("change_abs")),
+            "intraday_volume": intraday_raw.get("intraday_volume", intraday_raw.get("volume")),
+            "avg_volume_10d": intraday_raw.get("avg_volume_10d", intraday_raw.get("average_volume_10d_calc")),
+            "rvol_10d": intraday_raw.get("rvol_10d", intraday_raw.get("relative_volume_10d_calc")),
+            "vwap": intraday_raw.get("vwap", intraday_raw.get("VWAP")),
             "premarket_change": intraday_raw.get("premarket_change"),
             "premarket_gap": intraday_raw.get("premarket_gap"),
             "premarket_high": intraday_raw.get("premarket_high"),
             "premarket_low": intraday_raw.get("premarket_low"),
             "gap": intraday_raw.get("gap"),
+            "days_to_earnings": intraday_raw.get("days_to_earnings"),
+            "price_vs_ema50_pct": intraday_raw.get("price_vs_ema50_pct"),
+            "price_vs_ema200_pct": intraday_raw.get("price_vs_ema200_pct"),
             "technical_rating": None,
             "rsi": None,
             "latest_news_titles": latest_titles,
@@ -118,6 +124,38 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
         candidates.append(candidate)
 
     ranked = sorted(candidates, key=lambda c: c.get("preliminary_score", 0), reverse=True)
+    if use_intraday:
+        matched = int(intraday_diagnostics.get("screener_symbols_matched", 0))
+        if matched < 5:
+            intraday_n = max(1, int(intraday_top_n))
+            fallback_intraday_symbols = [c["ticker"] for c in ranked[:intraday_n]]
+            global_warnings.append(
+                f"run_screener sin cobertura útil; usando get_symbol_data para Top {len(fallback_intraday_symbols)}"
+            )
+            symbol_data_map, symbol_data_warnings, symbol_data_diag = fetch_intraday_symbol_data_batch(
+                fallback_intraday_symbols
+            )
+            global_warnings.extend(symbol_data_warnings)
+            intraday_source_counts["get_symbol_data"] = int(symbol_data_diag.get("symbol_data_success", 0))
+            intraday_map.update(symbol_data_map)
+            for candidate in candidates:
+                key = candidate["ticker"].upper()
+                intraday_raw = intraday_map.get(key) or intraday_map.get(f"NASDAQ:{key}") or {}
+                if not intraday_raw:
+                    continue
+                candidate["intraday_close"] = candidate.get("intraday_close") or intraday_raw.get("intraday_close", intraday_raw.get("close"))
+                candidate["intraday_change"] = candidate.get("intraday_change") or intraday_raw.get("intraday_change", intraday_raw.get("change"))
+                candidate["intraday_change_abs"] = candidate.get("intraday_change_abs") or intraday_raw.get("intraday_change_abs", intraday_raw.get("change_abs"))
+                candidate["intraday_volume"] = candidate.get("intraday_volume") or intraday_raw.get("intraday_volume", intraday_raw.get("volume"))
+                candidate["avg_volume_10d"] = candidate.get("avg_volume_10d") or intraday_raw.get("avg_volume_10d", intraday_raw.get("average_volume_10d_calc"))
+                candidate["rvol_10d"] = candidate.get("rvol_10d") or intraday_raw.get("rvol_10d", intraday_raw.get("relative_volume_10d_calc"))
+                candidate["vwap"] = candidate.get("vwap") or intraday_raw.get("vwap", intraday_raw.get("VWAP"))
+                candidate["premarket_change"] = candidate.get("premarket_change") or intraday_raw.get("premarket_change")
+                candidate["premarket_gap"] = candidate.get("premarket_gap") or intraday_raw.get("premarket_gap")
+                candidate["premarket_high"] = candidate.get("premarket_high") or intraday_raw.get("premarket_high")
+                candidate["premarket_low"] = candidate.get("premarket_low") or intraday_raw.get("premarket_low")
+                candidate["gap"] = candidate.get("gap") or intraday_raw.get("gap")
+
     technical_n = max(1, int(technical_top_n))
     technical_symbols = [c["ticker"] for c in ranked[:technical_n]]
     technical_symbol_keys = {x.upper() for x in technical_symbols}
@@ -376,6 +414,8 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
         "rvol_available": rvol_available,
         "vwap_available": vwap_available,
         "premarket_available": premarket_available,
+        "intraday_via_run_screener": intraday_source_counts["run_screener"],
+        "intraday_via_get_symbol_data": intraday_source_counts["get_symbol_data"],
         "screener_rows_returned": int(intraday_diagnostics.get("screener_rows_returned", 0)),
         "screener_symbols_matched": int(intraday_diagnostics.get("screener_symbols_matched", 0)),
         "screener_symbol_fields_detected": intraday_diagnostics.get(
