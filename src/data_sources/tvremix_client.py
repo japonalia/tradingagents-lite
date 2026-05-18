@@ -370,16 +370,6 @@ def fetch_multi_timeframe_technicals_batch(
     requested_short = {symbol.split(":", 1)[-1].upper() for symbol in requested_tv}
     key_lookup = {symbol.split(":", 1)[-1].upper(): symbol for symbol in requested_tv}
 
-    def _lc_key_map(item: dict[str, Any]) -> dict[str, Any]:
-        return {str(k).lower(): v for k, v in item.items()}
-
-    def _pick(item: dict[str, Any], *names: str) -> Any:
-        lc = _lc_key_map(item)
-        for name in names:
-            if name.lower() in lc and lc[name.lower()] not in (None, ""):
-                return lc[name.lower()]
-        return None
-
     def _as_number(value: Any) -> Any:
         if isinstance(value, (int, float)):
             return value
@@ -400,26 +390,53 @@ def fetch_multi_timeframe_technicals_batch(
         if not mapped_tv:
             return
 
-        technical_rating = _pick(item, "technical_rating", "recommendation", "rating")
-        technical_rating_value = _pick(item, "technical_rating_value", "rating_value")
+        price = item.get("price") if isinstance(item.get("price"), dict) else {}
+        timeframes = item.get("timeframes") if isinstance(item.get("timeframes"), dict) else {}
+        timeframe = timeframes.get("1D") if isinstance(timeframes.get("1D"), dict) else {}
+        rating = timeframe.get("rating") if isinstance(timeframe.get("rating"), dict) else {}
+        oscillators = timeframe.get("oscillators") if isinstance(timeframe.get("oscillators"), dict) else {}
+        moving_averages = (
+            timeframe.get("moving_averages")
+            if isinstance(timeframe.get("moving_averages"), dict)
+            else {}
+        )
+        confluence = item.get("confluence") if isinstance(item.get("confluence"), dict) else {}
+        timeframe_bollinger = timeframe.get("bollinger") if isinstance(timeframe.get("bollinger"), dict) else {}
+        root_bollinger = item.get("bollinger") if isinstance(item.get("bollinger"), dict) else {}
+        bollinger = timeframe_bollinger or root_bollinger
+
         compact = {
-            "timeframe": _pick(item, "timeframe", "interval") or (timeframe_list[0] if timeframe_list else None),
-            "technical_rating": technical_rating,
-            "technical_rating_value": _as_number(technical_rating_value),
-            "rsi": _as_number(_pick(item, "rsi", "rsi14")),
-            "macd": _as_number(_pick(item, "macd", "macd_line")),
-            "macd_signal": _as_number(_pick(item, "macd_signal", "signal")),
-            "macd_hist": _as_number(_pick(item, "macd_hist", "macd_histogram", "histogram")),
-            "sma20": _as_number(_pick(item, "sma20", "sma_20")),
-            "sma50": _as_number(_pick(item, "sma50", "sma_50")),
-            "sma200": _as_number(_pick(item, "sma200", "sma_200")),
-            "ema20": _as_number(_pick(item, "ema20", "ema_20")),
-            "ema50": _as_number(_pick(item, "ema50", "ema_50")),
-            "atr": _as_number(_pick(item, "atr")),
-            "adx": _as_number(_pick(item, "adx")),
-            "oscillator_bias": _pick(item, "oscillator_bias", "oscillators_bias"),
-            "ma_bias": _pick(item, "ma_bias", "moving_averages_bias"),
-            "summary_markdown": summary_text or _pick(item, "summary_markdown", "summary"),
+            "timeframe": "1D",
+            "summary_markdown": summary_text,
+            "technical_price": _as_number(price.get("price")),
+            "technical_open": _as_number(price.get("open")),
+            "technical_high": _as_number(price.get("high")),
+            "technical_low": _as_number(price.get("low")),
+            "technical_change": _as_number(price.get("change")),
+            "technical_volume": _as_number(price.get("volume")),
+            "week_52_high": _as_number(price.get("week_52_high")),
+            "week_52_low": _as_number(price.get("week_52_low")),
+            "market_cap": _as_number(price.get("market_cap")),
+            "technical_rating": rating.get("summary"),
+            "technical_rating_value": _as_number(rating.get("value")),
+            "ma_bias": rating.get("moving_averages"),
+            "oscillator_bias": rating.get("oscillators"),
+            "rsi": _as_number(oscillators.get("rsi")),
+            "macd": _as_number(oscillators.get("macd")),
+            "macd_signal": _as_number(oscillators.get("macd_signal")),
+            "adx": _as_number(oscillators.get("adx")),
+            "stoch_k": _as_number(oscillators.get("stoch_k")),
+            "cci": _as_number(oscillators.get("cci")),
+            "ema10": _as_number(moving_averages.get("ema10")),
+            "ema20": _as_number(moving_averages.get("ema20")),
+            "ema50": _as_number(moving_averages.get("ema50")),
+            "sma50": _as_number(moving_averages.get("sma50")),
+            "sma100": _as_number(moving_averages.get("sma100")),
+            "sma200": _as_number(moving_averages.get("sma200")),
+            "atr": _as_number(timeframe.get("atr")),
+            "bb_upper": _as_number(bollinger.get("upper")),
+            "bb_lower": _as_number(bollinger.get("lower")),
+            "confluence_alignment": confluence.get("alignment"),
         }
         compact = {k: v for k, v in compact.items() if v not in (None, "")}
         if compact:
@@ -429,24 +446,10 @@ def fetch_multi_timeframe_technicals_batch(
     summary_markdown = parsed.get("summary_markdown") if isinstance(parsed, dict) else None
 
     if isinstance(parsed, dict):
-        data_root = parsed.get("data", parsed)
-        if isinstance(data_root, dict):
-            for key, value in data_root.items():
-                if isinstance(value, dict):
-                    payload = value.get("1D") if isinstance(value.get("1D"), dict) else value
-                    _collect_symbol_record(str(key), payload, summary_markdown)
-                elif isinstance(value, list):
-                    for list_item in value:
-                        if isinstance(list_item, dict):
-                            tf = _pick(list_item, "timeframe", "interval")
-                            if tf in (None, "", "1D"):
-                                sym = _pick(list_item, "symbol", "ticker", "tv_symbol") or key
-                                _collect_symbol_record(str(sym), list_item, summary_markdown)
-        elif isinstance(data_root, list):
-            for item in data_root:
-                if isinstance(item, dict):
-                    sym = _pick(item, "symbol", "ticker", "tv_symbol")
-                    _collect_symbol_record(str(sym or ""), item, summary_markdown)
+        data_root = parsed.get("data") if isinstance(parsed.get("data"), dict) else {}
+        results = data_root.get("results") if isinstance(data_root.get("results"), dict) else {}
+        for key, value in results.items():
+            _collect_symbol_record(str(key), value, summary_markdown)
 
     if not records:
         raw_keys = list(parsed.keys()) if isinstance(parsed, dict) else type(parsed).__name__

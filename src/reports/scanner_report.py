@@ -97,6 +97,15 @@ def generate_scanner_report(candidates, output_path, source="tvremix", global_wa
         lines.append(f"- Warnings: {'; '.join(catalyst_warnings) if catalyst_warnings else 'ninguno'}")
         lines.append("")
 
+    top_with_batch = [c for c in sorted_candidates if any(c.get(k) not in (None, "") for k in ("adx", "atr", "confluence_alignment", "week_52_high", "week_52_low"))][:5]
+    if top_with_batch:
+        lines.extend(["## Técnicos batch destacados (Top 5)", ""])
+        for c in top_with_batch:
+            lines.append(
+                f"- **{_fmt(c.get('ticker'))}**: ADX={_fmt(c.get('adx'))}, ATR={_fmt(c.get('atr'))}, confluence={_fmt(c.get('confluence_alignment'))}, 52w=[{_fmt(c.get('week_52_low'))} - {_fmt(c.get('week_52_high'))}]"
+            )
+        lines.append("")
+
     lines.extend(
         [
             "## No es señal ejecutable",

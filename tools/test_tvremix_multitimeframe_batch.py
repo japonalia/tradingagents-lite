@@ -69,8 +69,14 @@ def main() -> int:
     top_keys = list(parsed.keys()) if isinstance(parsed, dict) else []
     data = parsed.get("data") if isinstance(parsed, dict) else None
     data_keys = list(data.keys()) if isinstance(data, dict) else []
-    sample_key, sample_value = _first_symbol_sample(data, symbols)
-    numeric_fields = sorted(_collect_numeric_fields(sample_value)) if sample_value is not None else []
+    results = data.get("results") if isinstance(data, dict) else None
+    sample_key, sample_value = _first_symbol_sample(results, symbols)
+    timeframe_sample = None
+    if isinstance(sample_value, dict):
+        tf_map = sample_value.get("timeframes")
+        if isinstance(tf_map, dict):
+            timeframe_sample = tf_map.get("1D")
+    numeric_fields = sorted(_collect_numeric_fields(timeframe_sample)) if timeframe_sample is not None else []
 
     report = {
         "requested_symbols": symbols,
@@ -79,8 +85,10 @@ def main() -> int:
         "has_summary_markdown": bool(isinstance(parsed, dict) and parsed.get("summary_markdown")),
         "data_type": type(data).__name__,
         "data_keys": data_keys,
+        "results_keys": list(results.keys()) if isinstance(results, dict) else [],
         "first_symbol_key": sample_key,
         "first_symbol_sample": _sanitize(sample_value),
+        "first_symbol_timeframe_1d": _sanitize(timeframe_sample),
         "numeric_fields_found": numeric_fields,
         "sanitized_response": _sanitize(parsed),
     }
@@ -93,6 +101,7 @@ def main() -> int:
     print("tipo de data:", report["data_type"])
     print("keys de data:", data_keys)
     print("ejemplo reducido del primer símbolo:", _sanitize(sample_value) if isinstance(sample_value, dict) else sample_value)
+    print("ejemplo timeframe 1D:", _sanitize(timeframe_sample) if isinstance(timeframe_sample, dict) else timeframe_sample)
     print("campos numéricos encontrados:", numeric_fields)
     print(f"Salida guardada en: {OUTPUT_PATH}")
     return 0
