@@ -94,6 +94,7 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
     technical_symbols = [c["ticker"] for c in ranked[:technical_n]]
     technical_symbol_keys = {x.upper() for x in technical_symbols}
     technicals_map: dict = {}
+    technical_fallback_count = 0
 
     try:
         technicals_map, tech_warnings = fetch_multi_timeframe_technicals_batch(
@@ -103,19 +104,36 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
     except Exception as exc:
         global_warnings.append(f"analyze_multi_timeframe_batch falló globalmente: {exc}")
 
-    if not technicals_map and technical_symbols:
+    if technical_symbols:
+        fallback_candidates = []
+        for symbol in technical_symbols:
+            tv_symbol = f"NASDAQ:{symbol.upper()}" if ":" not in symbol else symbol.upper()
+            short = tv_symbol.split(":", 1)[-1].upper()
+            tech_item = technicals_map.get(tv_symbol) or technicals_map.get(short) or {}
+            if not isinstance(tech_item, dict) or not any(
+                tech_item.get(k) not in (None, "")
+                for k in ("technical_rating", "technical_rating_value", "rsi", "macd", "summary_markdown")
+            ):
+                fallback_candidates.append(tv_symbol)
+
+        fallback_limit = min(5, len(fallback_candidates))
+        if fallback_candidates and fallback_limit < len(fallback_candidates):
+            global_warnings.append(
+                f"fallback técnicos individuales limitado a {fallback_limit}/{len(fallback_candidates)} símbolos para evitar rate limit"
+            )
+
         rate_limit_stopped = False
         rate_limit_warning_added = False
-        for symbol in technical_symbols:
+        for tv_symbol in fallback_candidates[:fallback_limit]:
             if rate_limit_stopped:
                 break
-            tv_symbol = f"NASDAQ:{symbol.upper()}" if ":" not in symbol else symbol.upper()
             short = tv_symbol.split(":", 1)[-1].upper()
             try:
                 technicals, tech_warnings = fetch_technicals(tv_symbol, interval="1D")
                 global_warnings.extend(tech_warnings)
                 technicals_map[tv_symbol] = technicals
                 technicals_map[short] = technicals
+                technical_fallback_count += 1
             except Exception as exc:
                 msg = str(exc)
                 if "429" in msg or "Too Many Requests" in msg:
@@ -136,6 +154,7 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
             continue
         tech_raw = technicals_map.get(key, {})
         tech_data = tech_raw.get("data") if isinstance(tech_raw, dict) and isinstance(tech_raw.get("data"), dict) else tech_raw
+        candidate["technical_batch_summary"] = tech_data.get("summary_markdown") if isinstance(tech_data, dict) else None
         summary = tech_data.get("summary", {}) if isinstance(tech_data, dict) else {}
         oscillators = tech_data.get("oscillators", {}) if isinstance(tech_data, dict) else {}
         candidate["technical_rating"] = (
@@ -242,12 +261,20 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
     ranked_final = sorted(candidates, key=lambda c: c.get("total_score", 0), reverse=True)
     shown_limit = max(1, int(limit))
 
+    technical_batch_available = sum(
+        1 for c in candidates if c.get("ticker", "").upper() in technical_symbol_keys and (c.get("technical_rating") not in (None, "") or c.get("rsi") not in (None, ""))
+    )
+    technical_unavailable = max(len(technical_symbols) - technical_batch_available, 0)
+
     return {
         "symbols_in_universe": len(symbols),
         "candidates_evaluated": len(candidates),
         "candidates_shown": min(shown_limit, len(ranked_final)),
         "quotes_available": sum(1 for c in candidates if c.get("price") not in (None, "")),
         "technicals_available": sum(1 for c in candidates if c.get("technical_rating") not in (None, "") or c.get("rsi") not in (None, "")),
+        "technicals_batch_available": technical_batch_available,
+        "technicals_fallback_individual": technical_fallback_count,
+        "technicals_not_available": technical_unavailable,
         "catalysts_queried": len(catalyst_symbols),
         "candidates": ranked_final[:shown_limit],
         "global_warnings": deduped_global_warnings,
