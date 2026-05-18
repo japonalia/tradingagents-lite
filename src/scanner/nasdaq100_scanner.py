@@ -66,6 +66,7 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
             "earnings_items": earnings_items,
             "catalyst_warnings": [],
             "warnings": [],
+            "technical_source": None,
         }
 
         cp = candidate.get("change_percent")
@@ -155,21 +156,31 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
         tech_raw = technicals_map.get(key, {})
         tech_data = tech_raw.get("data") if isinstance(tech_raw, dict) and isinstance(tech_raw.get("data"), dict) else tech_raw
         candidate["technical_batch_summary"] = tech_data.get("summary_markdown") if isinstance(tech_data, dict) else None
-        summary = tech_data.get("summary", {}) if isinstance(tech_data, dict) else {}
-        oscillators = tech_data.get("oscillators", {}) if isinstance(tech_data, dict) else {}
-        candidate["technical_rating"] = (
-            candidate.get("technical_rating")
-            or (tech_data.get("technical_rating") if isinstance(tech_data, dict) else None)
-            or summary.get("recommendation")
-            or (tech_data.get("recommendation") if isinstance(tech_data, dict) else None)
-        )
-        candidate["rsi"] = (
-            candidate.get("rsi")
-            or (tech_data.get("rsi") if isinstance(tech_data, dict) else None)
-            or oscillators.get("rsi")
-        )
+        if isinstance(tech_data, dict):
+            candidate["technical_rating"] = candidate.get("technical_rating") or tech_data.get("technical_rating")
+            candidate["technical_rating_value"] = tech_data.get("technical_rating_value")
+            candidate["rsi"] = candidate.get("rsi") or tech_data.get("rsi")
+            candidate["macd"] = tech_data.get("macd")
+            candidate["macd_signal"] = tech_data.get("macd_signal")
+            candidate["adx"] = tech_data.get("adx")
+            candidate["atr"] = tech_data.get("atr")
+            candidate["confluence_alignment"] = tech_data.get("confluence_alignment")
+            candidate["week_52_high"] = tech_data.get("week_52_high")
+            candidate["week_52_low"] = tech_data.get("week_52_low")
+            candidate["ma_bias"] = tech_data.get("ma_bias")
+            candidate["oscillator_bias"] = tech_data.get("oscillator_bias")
+            if candidate.get("price") in (None, ""):
+                candidate["price"] = tech_data.get("technical_price")
+            if candidate.get("volume") in (None, ""):
+                candidate["volume"] = tech_data.get("technical_volume")
+            if candidate.get("change_percent") in (None, ""):
+                candidate["change_percent"] = tech_data.get("technical_change")
+            if candidate.get("technical_rating") not in (None, "") or candidate.get("rsi") not in (None, ""):
+                candidate["technical_source"] = "batch"
         if not candidate.get("technical_rating") and not candidate.get("rsi"):
             candidate["warnings"].append("technicals no disponibles en analyze_multi_timeframe_batch/get_technicals")
+        elif candidate.get("technical_source") is None:
+            candidate["technical_source"] = "fallback_individual"
         candidate["missing_fields"] = [k for k in ["price", "change_percent", "volume", "technical_rating", "rsi"] if candidate.get(k) in (None, "")]
         candidate.update(score_candidate(candidate))
 
