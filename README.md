@@ -149,6 +149,7 @@ Scanner Nasdaq 100 operativo: usa `config/nasdaq100_symbols.yaml` (universo ampl
 Parámetros del scanner Nasdaq 100:
 - `--limit`: limita solo cuántas filas se muestran en el ranking final del reporte.
 - `--technical-top-n`: limita cuántas candidatas preliminares reciben consultas técnicas (`analyze_multi_timeframe_batch` y fallback individual).
+- `--intraday-top-n`: limita cuántas candidatas preliminares reciben fallback intradía con `get_symbol_data` cuando `run_screener` no cubre bien el universo Nasdaq 100.
 - `--catalyst-top-n`: limita cuántas candidatas preliminares reciben consultas de catalizadores.
 - `--skip-news`: omite consulta de `get_news` para reducir ruido/costo cuando solo quieres técnicos.
 - `--skip-earnings` / `--no-skip-earnings`: controla consulta de `get_earnings_calendar` (por defecto `--skip-earnings` activado para evitar ruido y rate limits).
@@ -162,3 +163,4 @@ Recomendación operativa del scanner:
 
 - Diagnóstico intradía experimental: `PYTHONPATH=. python tools/test_tvremix_intraday_fields.py`
 - Los campos RVOL/VWAP/premarket del scanner se leen desde `run_screener` cuando TVRemix los devuelve para el símbolo.
+- Si `run_screener` devuelve cobertura baja del universo (ej. <5 símbolos parseables), el scanner usa fallback práctico: consulta `get_symbol_data` **solo** para el Top preliminar (`--intraday-top-n`, default 10), evitando pedir intradía para todo el universo y reduciendo riesgo de rate limit.

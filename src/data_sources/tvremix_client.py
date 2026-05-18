@@ -480,6 +480,107 @@ def fetch_intraday_screener_fields(
     return records, warnings, diagnostics
 
 
+def fetch_intraday_symbol_data_batch(
+    symbols: list[str],
+) -> tuple[dict[str, dict[str, Any]], list[str], dict[str, Any]]:
+    normalized = [normalize_tv_symbol(symbol) for symbol in symbols if str(symbol).strip()]
+    if not normalized:
+        return {}, ["No se recibieron símbolos para get_symbol_data."], {}
+
+    requested_tv = {sym.upper() for sym in normalized}
+    warnings: list[str] = []
+    records: dict[str, dict[str, Any]] = {}
+    success_count = 0
+    failed_count = 0
+
+    columns = [
+        "close",
+        "change",
+        "change_abs",
+        "volume",
+        "average_volume_10d_calc",
+        "relative_volume_10d_calc",
+        "vol_ratio_10d",
+        "VWAP",
+        "premarket_change",
+        "premarket_gap",
+        "premarket_high",
+        "premarket_low",
+        "gap",
+        "market_cap_basic",
+        "price_earnings_ttm",
+        "days_to_earnings",
+        "price_vs_ema50_pct",
+        "price_vs_ema200_pct",
+    ]
+
+    def _extract_symbol_payload(payload: Any) -> dict[str, Any]:
+        if isinstance(payload, dict):
+            if isinstance(payload.get("data"), dict):
+                return payload["data"]
+            for key in ("symbol_data", "symbol", "result"):
+                candidate = payload.get(key)
+                if isinstance(candidate, dict):
+                    return candidate
+            return payload
+        if isinstance(payload, list):
+            for item in payload:
+                if isinstance(item, dict):
+                    return item
+        return {}
+
+    for tv_symbol in normalized:
+        short = tv_symbol.split(":", 1)[-1].upper()
+        try:
+            raw = _extract_result_payload(
+                call_tool("get_symbol_data", {"symbol": tv_symbol, "columns": columns})
+            )
+            parsed, parse_warnings = parse_mcp_text_payload(raw)
+            warnings.extend(parse_warnings)
+            data = _extract_symbol_payload(parsed)
+            if not data:
+                failed_count += 1
+                warnings.append(f"get_symbol_data sin payload parseable para {tv_symbol}.")
+                continue
+            compact = {
+                "intraday_close": data.get("close"),
+                "intraday_change": data.get("change"),
+                "intraday_change_abs": data.get("change_abs"),
+                "intraday_volume": data.get("volume"),
+                "avg_volume_10d": data.get("average_volume_10d_calc"),
+                "rvol_10d": data.get("relative_volume_10d_calc")
+                if data.get("relative_volume_10d_calc") not in (None, "")
+                else data.get("vol_ratio_10d"),
+                "vwap": data.get("VWAP"),
+                "premarket_change": data.get("premarket_change"),
+                "premarket_gap": data.get("premarket_gap"),
+                "premarket_high": data.get("premarket_high"),
+                "premarket_low": data.get("premarket_low"),
+                "gap": data.get("gap"),
+                "days_to_earnings": data.get("days_to_earnings"),
+                "price_vs_ema50_pct": data.get("price_vs_ema50_pct"),
+                "price_vs_ema200_pct": data.get("price_vs_ema200_pct"),
+                "market_cap_basic": data.get("market_cap_basic"),
+                "price_earnings_ttm": data.get("price_earnings_ttm"),
+            }
+            records[tv_symbol.upper()] = compact
+            records[short] = compact
+            success_count += 1
+        except Exception as exc:
+            failed_count += 1
+            warnings.append(f"get_symbol_data falló para {tv_symbol}: {exc}")
+            if "429" in str(exc) or "Too Many Requests" in str(exc):
+                warnings.append("rate limit alcanzado en get_symbol_data; se detuvieron consultas adicionales")
+                break
+
+    diagnostics = {
+        "symbol_data_requested": len(requested_tv),
+        "symbol_data_success": success_count,
+        "symbol_data_failed": failed_count,
+    }
+    return records, warnings, diagnostics
+
+
 def fetch_technicals_batch(symbols: list[str], interval: str = "1D") -> tuple[dict[str, dict[str, Any]], list[str]]:
     warnings: list[str] = []
     records: dict[str, dict[str, Any]] = {}

@@ -36,8 +36,8 @@ def run_ticker_command(ticker: str, source: str = "yfinance") -> Path:
 
 
 
-def run_scan_nasdaq100_command(source: str = "tvremix", limit: int = 10, catalyst_top_n: int = 10, technical_top_n: int = 25, max_symbols: int | None = None, skip_news: bool = False, skip_earnings: bool = True, skip_intraday: bool = False) -> Path:
-    result = scan_nasdaq100(source=source, limit=limit, catalyst_top_n=catalyst_top_n, technical_top_n=technical_top_n, max_symbols=max_symbols, skip_news=skip_news, skip_earnings=skip_earnings, use_intraday=not skip_intraday)
+def run_scan_nasdaq100_command(source: str = "tvremix", limit: int = 10, catalyst_top_n: int = 10, technical_top_n: int = 25, intraday_top_n: int = 10, max_symbols: int | None = None, skip_news: bool = False, skip_earnings: bool = True, skip_intraday: bool = False) -> Path:
+    result = scan_nasdaq100(source=source, limit=limit, catalyst_top_n=catalyst_top_n, technical_top_n=technical_top_n, intraday_top_n=intraday_top_n, max_symbols=max_symbols, skip_news=skip_news, skip_earnings=skip_earnings, use_intraday=not skip_intraday)
     return generate_scanner_report(
         candidates=result.get("candidates", []),
         global_warnings=result.get("global_warnings", []),
@@ -62,6 +62,7 @@ def build_parser() -> argparse.ArgumentParser:
     scan_parser.add_argument("--source", default="tvremix", help="Fuente de datos (actual: tvremix)")
     scan_parser.add_argument("--limit", default=10, type=int, help="Cantidad de filas del ranking final a mostrar")
     scan_parser.add_argument("--technical-top-n", default=25, type=int, help="Top preliminar para consultar técnicos (batch/fallback)")
+    scan_parser.add_argument("--intraday-top-n", default=10, type=int, help="Top preliminar para fallback intradía con get_symbol_data cuando run_screener no cubre el universo")
     scan_parser.add_argument("--catalyst-top-n", default=10, type=int, help="Top preliminar para consultar noticias/earnings")
     scan_parser.add_argument("--max-symbols", default=None, type=int, help="Límite opcional del universo evaluado (solo debug)")
     scan_parser.add_argument("--skip-news", action="store_true", help="Omite consulta de noticias/catalizadores")
@@ -86,7 +87,7 @@ def main() -> None:
 
     if args.command == "scan-nasdaq100":
         try:
-            output_file = run_scan_nasdaq100_command(source=args.source, limit=args.limit, catalyst_top_n=args.catalyst_top_n, technical_top_n=args.technical_top_n, max_symbols=args.max_symbols, skip_news=args.skip_news, skip_earnings=args.skip_earnings, skip_intraday=args.skip_intraday)
+            output_file = run_scan_nasdaq100_command(source=args.source, limit=args.limit, catalyst_top_n=args.catalyst_top_n, technical_top_n=args.technical_top_n, intraday_top_n=args.intraday_top_n, max_symbols=args.max_symbols, skip_news=args.skip_news, skip_earnings=args.skip_earnings, skip_intraday=args.skip_intraday)
         except Exception as exc:
             print(f"Error al ejecutar scanner Nasdaq 100: {exc}")
             return
