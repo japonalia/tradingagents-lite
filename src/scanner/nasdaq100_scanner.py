@@ -38,8 +38,11 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
     quotes_map, quote_warnings = fetch_quotes_batch(universe_symbols)
     global_warnings.extend(quote_warnings)
     intraday_map: dict[str, dict] = {}
+    intraday_diagnostics: dict = {}
     if use_intraday:
-        intraday_map, intraday_warnings = fetch_intraday_screener_fields(universe_symbols)
+        intraday_map, intraday_warnings, intraday_diagnostics = fetch_intraday_screener_fields(
+            universe_symbols
+        )
         global_warnings.extend(intraday_warnings)
 
     candidates: list[dict] = []
@@ -373,6 +376,11 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
         "rvol_available": rvol_available,
         "vwap_available": vwap_available,
         "premarket_available": premarket_available,
+        "screener_rows_returned": int(intraday_diagnostics.get("screener_rows_returned", 0)),
+        "screener_symbols_matched": int(intraday_diagnostics.get("screener_symbols_matched", 0)),
+        "screener_symbol_fields_detected": intraday_diagnostics.get(
+            "screener_symbol_fields_detected", []
+        ),
         "technicals_available": technicals_available,
         "technicals_batch_available": technical_batch_available,
         "technicals_fallback_individual": technical_fallback_count,
