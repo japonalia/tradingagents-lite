@@ -73,7 +73,7 @@ def generate_scanner_report(candidates, output_path, source="tvremix", global_wa
         f"- Técnicos no disponibles: **{technicals_not_available}**",
         f"- Catalizadores consultados: **{catalysts_queried}**",
         f"- Completas: **{complete}**",
-        f"- Con datos faltantes: **{missing}**",
+        f"- Con datos faltantes: **{missing}** (incluye símbolos fuera del subconjunto técnico consultado)",
         f"- Datos no disponibles detectados: **{', '.join(unavailable) if unavailable else 'ninguno'}**",
         "",
         "## Top candidatas",

@@ -294,14 +294,41 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
 
     quotes_available = sum(1 for c in candidates if c.get("price") not in (None, ""))
     technicals_available = sum(1 for c in candidates if c.get("technical_rating") not in (None, "") or c.get("rsi") not in (None, ""))
-    quote_or_technical_degraded = (
-        quotes_available < len(candidates)
-        or technical_batch_available < len(technical_symbols)
+    candidates_with_core_market_data = sum(
+        1
+        for c in candidates
+        if c.get("price") not in (None, "")
+        and c.get("volume") not in (None, "")
+        and c.get("change_percent") not in (None, "")
     )
-    catalysts_enabled = (not skip_news) or (not skip_earnings and top_n > 0)
-    scanner_mode = "technical_plus_catalysts" if catalysts_enabled else "technical_only"
-    if quote_or_technical_degraded:
+
+    catalyst_queries_enabled = top_n > 0 and ((not skip_news) or (not skip_earnings))
+    technicals_required = technical_n > 0
+
+    critical_warning_markers = (
+        "rate limit alcanzado en técnicos",
+        "analyze_multi_timeframe_batch falló globalmente",
+        "rate limit alcanzado: se omiten noticias/earnings restantes",
+        "get_quotes",
+    )
+    has_critical_data_warning = any(
+        any(marker in warning for marker in critical_warning_markers)
+        for warning in deduped_global_warnings
+    )
+
+    degraded_reasons = [
+        quotes_available == 0,
+        candidates_with_core_market_data == 0,
+        technicals_required and technicals_available == 0,
+        has_critical_data_warning and (quotes_available == 0 or (technicals_required and technicals_available == 0)),
+    ]
+
+    if any(degraded_reasons):
         scanner_mode = "degraded"
+    elif catalyst_queries_enabled:
+        scanner_mode = "technical_plus_catalysts"
+    else:
+        scanner_mode = "technical_only"
 
     return {
         "symbols_in_universe": len(symbols),
