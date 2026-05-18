@@ -30,6 +30,30 @@ def score_candidate(candidate: dict) -> dict:
     if not volume_score:
         reasons.append("Sin volumen.")
 
+    # Intradía (RVOL/VWAP/Gap): 0-10
+    intraday = 0.0
+    rvol = _to_float(candidate.get("rvol_10d"))
+    vwap = _to_float(candidate.get("vwap"))
+    intraday_price = _to_float(candidate.get("intraday_close"))
+    if intraday_price is None:
+        intraday_price = _to_float(candidate.get("price"))
+    gap = _to_float(candidate.get("gap"))
+    premarket_gap = _to_float(candidate.get("premarket_gap"))
+    intraday_change = _to_float(candidate.get("intraday_change"))
+
+    if rvol is not None and rvol >= 1.5:
+        intraday += 2.5
+    if rvol is not None and rvol >= 2.0:
+        intraday += 2.5
+    if intraday_price is not None and vwap is not None and intraday_price > vwap:
+        intraday += 2.0
+    if (gap is not None and abs(gap) >= 1.0) or (premarket_gap is not None and abs(premarket_gap) >= 1.0):
+        intraday += 1.5
+    if (intraday_change is not None and abs(intraday_change) >= 3.0) and (rvol is None or rvol < 1.2):
+        intraday -= 2.0
+        penalties.append("Movimiento fuerte sin RVOL suficiente.")
+    intraday = max(0.0, min(10.0, intraday))
+
     # Técnico / rating / RSI: 0-20
     technical = 0.0
     rating = str(candidate.get("technical_rating") or "").upper()
@@ -87,13 +111,14 @@ def score_candidate(candidate: dict) -> dict:
         warnings.append("Caída fuerte sin noticia confirmada.")
     risk = max(0.0, risk)
 
-    total = momentum + volume_score + technical + catalyst + data_quality + risk
+    total = momentum + volume_score + intraday + technical + catalyst + data_quality + risk
 
     return {
         "total_score": round(min(100.0, total), 2),
         "score_breakdown": {
             "momentum": round(momentum, 2),
             "volume_liquidity": round(volume_score, 2),
+            "intraday": round(intraday, 2),
             "technical": round(technical, 2),
             "catalyst": round(catalyst, 2),
             "data_quality": round(data_quality, 2),
