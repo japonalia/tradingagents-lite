@@ -25,6 +25,17 @@ def score_candidate(candidate: dict) -> dict:
     else:
         momentum = max(0.0, min(15.0, 7.5 + cp * 1.2))
 
+    rs_vs_qqq = _to_float(candidate.get("relative_strength_vs_qqq"))
+    if rs_vs_qqq is not None:
+        if rs_vs_qqq > 2.0:
+            momentum += 4.0
+        elif rs_vs_qqq > 1.0:
+            momentum += 2.0
+        elif rs_vs_qqq < -1.0:
+            momentum -= 2.0
+            penalties.append("Bajo desempeño relativo vs QQQ.")
+    momentum = max(0.0, min(15.0, momentum))
+
     # Volumen / liquidez: 0-15
     volume_score = 15.0 if candidate.get("volume") not in (None, "") else 0.0
     if not volume_score:

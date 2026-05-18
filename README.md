@@ -144,6 +144,7 @@ Esta ruta permite validar el MVP end-to-end sin depender de APIs externas ni con
 ## Estado del scanner Nasdaq 100
 
 Scanner Nasdaq 100 operativo: usa `config/nasdaq100_symbols.yaml` (universo amplio), consulta `get_quotes_batch` para todo el universo en **chunks de hasta 50 símbolos** (límite de TVRemix), hace scoring preliminar y limita consultas costosas por fases: técnicos para `--technical-top-n` y catalizadores para `--catalyst-top-n`. El reporte incluye warnings globales separados de warnings por ticker.
+- Fuerza relativa vs QQQ incluida en scanner: **RS vs QQQ = variación % de la acción − variación % de QQQ** (si QQQ no está disponible, se deja como N/A y se reporta warning global).
 
 
 Parámetros del scanner Nasdaq 100:

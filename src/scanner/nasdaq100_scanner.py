@@ -38,6 +38,19 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
 
     quotes_map, quote_warnings = fetch_quotes_batch(universe_symbols)
     global_warnings.extend(quote_warnings)
+
+    qqq_quote_map, qqq_quote_warnings = fetch_quotes_batch(["QQQ"])
+    global_warnings.extend(qqq_quote_warnings)
+    qqq_quote = _extract_quote_core(qqq_quote_map.get("QQQ", {}))
+    qqq_change_percent = qqq_quote.get("change_percent")
+    if qqq_change_percent in (None, ""):
+        qqq_change_percent = qqq_quote.get("change")
+    try:
+        qqq_change_percent = float(qqq_change_percent) if qqq_change_percent not in (None, "") else None
+    except (TypeError, ValueError):
+        qqq_change_percent = None
+    if qqq_change_percent is None:
+        global_warnings.append("QQQ no disponible; fuerza relativa no calculada")
     intraday_map: dict[str, dict] = {}
     intraday_diagnostics: dict = {}
     intraday_source_counts = {"run_screener": 0, "get_symbol_data": 0}
@@ -94,6 +107,8 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
             "catalyst_warnings": [],
             "warnings": [],
             "technical_source": None,
+            "qqq_change_percent": qqq_change_percent,
+            "relative_strength_vs_qqq": None,
         }
         if candidate.get("price") in (None, "") and candidate.get("intraday_close") not in (None, ""):
             candidate["price"] = candidate["intraday_close"]
@@ -101,6 +116,16 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
             candidate["volume"] = candidate["intraday_volume"]
         if candidate.get("change_percent") in (None, "") and candidate.get("intraday_change") not in (None, ""):
             candidate["change_percent"] = candidate["intraday_change"]
+
+        candidate_change_percent = candidate.get("intraday_change")
+        if candidate_change_percent in (None, ""):
+            candidate_change_percent = candidate.get("change_percent")
+        try:
+            candidate_change_percent = float(candidate_change_percent) if candidate_change_percent not in (None, "") else None
+        except (TypeError, ValueError):
+            candidate_change_percent = None
+        if qqq_change_percent is not None and candidate_change_percent is not None:
+            candidate["relative_strength_vs_qqq"] = round(candidate_change_percent - qqq_change_percent, 4)
 
         cp = candidate.get("change_percent")
         if cp not in (None, ""):
@@ -365,6 +390,8 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
         1 for c in candidates if c.get("premarket_change") not in (None, "") or c.get("premarket_gap") not in (None, "")
     )
     technicals_available = sum(1 for c in candidates if c.get("technical_rating") not in (None, "") or c.get("rsi") not in (None, ""))
+    relative_strength_available = sum(1 for c in candidates if c.get("relative_strength_vs_qqq") not in (None, ""))
+
     candidates_with_core_market_data = sum(
         1
         for c in candidates
@@ -414,6 +441,8 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
         "rvol_available": rvol_available,
         "vwap_available": vwap_available,
         "premarket_available": premarket_available,
+        "qqq_change_percent": qqq_change_percent,
+        "relative_strength_available": relative_strength_available,
         "intraday_via_run_screener": intraday_source_counts["run_screener"],
         "intraday_via_get_symbol_data": intraday_source_counts["get_symbol_data"],
         "screener_rows_returned": int(intraday_diagnostics.get("screener_rows_returned", 0)),
