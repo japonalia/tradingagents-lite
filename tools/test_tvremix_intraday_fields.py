@@ -73,6 +73,21 @@ FIELD_HINTS = [
     "time",
     "bar",
 ]
+SYMBOL_CANDIDATE_FIELDS = [
+    "symbol",
+    "ticker",
+    "name",
+    "description",
+    "exchange",
+    "prefix",
+    "listed_exchange",
+    "update_mode",
+    "logoid",
+    "root",
+    "base_name",
+    "short_name",
+    "pro_name",
+]
 
 
 def _sanitize(obj: Any) -> Any:
@@ -211,7 +226,7 @@ def main() -> int:
         "candidate_columns": CANDIDATE_COLUMNS,
     }
 
-    report["tools"]["run_screener"] = _try_tool(
+    run_screener_result = _try_tool(
         "run_screener",
         {
             "market": "america",
@@ -219,6 +234,27 @@ def main() -> int:
             "columns": SCREENER_COLUMNS,
         },
     )
+    payload_preview = run_screener_result.get("payload_preview")
+    results_rows: list[dict[str, Any]] = []
+    if isinstance(payload_preview, dict):
+        data = payload_preview.get("data")
+        if isinstance(data, dict) and isinstance(data.get("results"), list):
+            results_rows = [x for x in data.get("results", []) if isinstance(x, dict)]
+        elif isinstance(payload_preview.get("results"), list):
+            results_rows = [x for x in payload_preview.get("results", []) if isinstance(x, dict)]
+    if results_rows:
+        sample_row = results_rows[0]
+        run_screener_result["rows_returned"] = len(results_rows)
+        run_screener_result["sample_row_keys"] = sorted(sample_row.keys())
+        run_screener_result["sample_row_compact"] = {
+            k: sample_row.get(k) for k in sorted(sample_row.keys())[:20]
+        }
+        run_screener_result["symbol_candidate_fields_detected"] = {
+            f: sample_row.get(f)
+            for f in SYMBOL_CANDIDATE_FIELDS
+            if sample_row.get(f) not in (None, "")
+        }
+    report["tools"]["run_screener"] = run_screener_result
 
     report["tools"]["analyze_multi_timeframe_batch"] = _try_tool(
         "analyze_multi_timeframe_batch",
@@ -242,6 +278,12 @@ def main() -> int:
             print(f"  status: {tool_payload.get('status')}")
             print(f"  top_level_keys: {tool_payload.get('top_level_keys', [])}")
             print(f"  matching_fields: {tool_payload.get('matching_fields', [])[:20]}")
+            if tool_name == "run_screener":
+                print(f"  rows_returned: {tool_payload.get('rows_returned')}")
+                print(f"  data.results[0].keys: {tool_payload.get('sample_row_keys', [])}")
+                print(
+                    f"  symbol_candidate_fields_detected: {tool_payload.get('symbol_candidate_fields_detected', {})}"
+                )
             continue
 
         if tool_name == "get_ohlcv":

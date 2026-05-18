@@ -343,11 +343,15 @@ def _extract_screener_items(payload: Any) -> list[dict[str, Any]]:
     return []
 
 
-def fetch_intraday_screener_fields(symbols: list[str]) -> tuple[dict[str, dict[str, Any]], list[str]]:
+def fetch_intraday_screener_fields(
+    symbols: list[str],
+) -> tuple[dict[str, dict[str, Any]], list[str], dict[str, Any]]:
     normalized = [normalize_tv_symbol(symbol) for symbol in symbols if str(symbol).strip()]
     if not normalized:
-        return {}, ["No se recibieron símbolos para run_screener."]
-    requested_short = {sym.split(":", 1)[-1].upper() for sym in normalized}
+        return {}, ["No se recibieron símbolos para run_screener."], {}
+    requested_tv = {sym.upper() for sym in normalized}
+    requested_short = {sym.split(":", 1)[-1].upper() for sym in requested_tv}
+    short_to_tv = {sym.split(":", 1)[-1].upper(): sym for sym in requested_tv}
 
     arguments = {
         "market": "america",
@@ -377,26 +381,103 @@ def fetch_intraday_screener_fields(symbols: list[str]) -> tuple[dict[str, dict[s
         raw = _extract_result_payload(call_tool("run_screener", arguments))
         parsed, warnings = parse_mcp_text_payload(raw)
     except Exception as exc:
-        return {}, [f"run_screener falló: {exc}"]
+        return {}, [f"run_screener falló: {exc}"], {}
 
     items = _extract_screener_items(parsed)
     records: dict[str, dict[str, Any]] = {}
-    for item in items:
-        raw_symbol = item.get("name") or item.get("symbol") or item.get("ticker")
-        if raw_symbol in (None, ""):
-            continue
-        short = str(raw_symbol).split(":", 1)[-1].upper()
-        if short not in requested_short:
-            continue
-        records[short] = item
-        records[f"NASDAQ:{short}"] = item
+    detected_symbol_fields: set[str] = set()
 
+    candidate_fields = [
+        "symbol",
+        "ticker",
+        "name",
+        "description",
+        "exchange",
+        "prefix",
+        "listed_exchange",
+        "update_mode",
+        "logoid",
+        "root",
+        "base_name",
+        "short_name",
+        "pro_name",
+    ]
+
+    def _normalize_exchange(value: Any) -> str | None:
+        if value in (None, ""):
+            return None
+        exchange = str(value).strip().upper()
+        if not exchange:
+            return None
+        if exchange in {"NAS", "XNAS"}:
+            return "NASDAQ"
+        return exchange
+
+    def _symbol_variants(item: dict[str, Any]) -> list[str]:
+        variants: set[str] = set()
+        exchange = _normalize_exchange(
+            item.get("exchange") or item.get("prefix") or item.get("listed_exchange")
+        )
+        for field in candidate_fields:
+            value = item.get(field)
+            if value in (None, ""):
+                continue
+            detected_symbol_fields.add(field)
+            token = str(value).strip().upper()
+            if not token:
+                continue
+            if ":" in token:
+                left, right = token.split(":", 1)
+                left = left.strip().upper()
+                right = right.strip().upper()
+                if right:
+                    variants.add(f"{left}:{right}")
+                    variants.add(right)
+                continue
+            if token.isalpha() and 1 <= len(token) <= 8:
+                variants.add(token)
+                if exchange:
+                    variants.add(f"{exchange}:{token}")
+                if token in short_to_tv:
+                    variants.add(short_to_tv[token])
+                    variants.add(f"NASDAQ:{token}")
+        return sorted(variants)
+
+    for item in items:
+        variants = _symbol_variants(item)
+        mapped_tv: str | None = None
+        mapped_short: str | None = None
+        for variant in variants:
+            if variant in requested_tv:
+                mapped_tv = variant
+                mapped_short = variant.split(":", 1)[-1].upper()
+                break
+            short = variant.split(":", 1)[-1].upper()
+            if short in requested_short:
+                mapped_short = short
+                mapped_tv = short_to_tv.get(short) or f"NASDAQ:{short}"
+                break
+        if not mapped_tv or not mapped_short:
+            continue
+        records[mapped_tv] = item
+        records[mapped_short] = item
+
+    matched_short = {k for k in records if ":" not in k}
+    matched_count = len(matched_short)
+    requested_count = len(requested_short)
     if not records:
         warnings.append("run_screener sin símbolos parseables del universo solicitado.")
-    elif len({k for k in records if ":" not in k}) < len(requested_short):
-        warnings.append("run_screener devolvió cobertura parcial del universo solicitado.")
+    if matched_count < requested_count:
+        warnings.append(
+            f"run_screener devolvió intradía para {matched_count}/{requested_count} símbolos del universo."
+        )
 
-    return records, warnings
+    diagnostics = {
+        "screener_rows_returned": len(items),
+        "screener_symbols_matched": matched_count,
+        "screener_symbol_fields_detected": sorted(detected_symbol_fields),
+    }
+    return records, warnings, diagnostics
 
 
 def fetch_technicals_batch(symbols: list[str], interval: str = "1D") -> tuple[dict[str, dict[str, Any]], list[str]]:
