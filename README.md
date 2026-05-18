@@ -152,6 +152,7 @@ Parámetros del scanner Nasdaq 100:
 - `--catalyst-top-n`: limita cuántas candidatas preliminares reciben consultas de catalizadores.
 - `--skip-news`: omite consulta de `get_news` para reducir ruido/costo cuando solo quieres técnicos.
 - `--skip-earnings` / `--no-skip-earnings`: controla consulta de `get_earnings_calendar` (por defecto `--skip-earnings` activado para evitar ruido y rate limits).
+- `--skip-intraday`: desactiva enriquecimiento intradía desde `run_screener` (RVOL/VWAP/premarket/gap).
 - `--max-symbols`: límite opcional del universo evaluado (solo debug/pruebas). Por defecto `None` para evaluar todo `config/nasdaq100_symbols.yaml`.
 
 
@@ -160,3 +161,4 @@ Recomendación operativa del scanner:
 - Activar `--no-skip-earnings` solo cuando necesites confirmar eventos cercanos y aceptes mayor ruido/riesgo de rate limit.
 
 - Diagnóstico intradía experimental: `PYTHONPATH=. python tools/test_tvremix_intraday_fields.py`
+- Los campos RVOL/VWAP/premarket del scanner se leen desde `run_screener` cuando TVRemix los devuelve para el símbolo.

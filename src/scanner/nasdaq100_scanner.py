@@ -3,6 +3,7 @@ from __future__ import annotations
 from src.data_sources.nasdaq100 import load_nasdaq100_symbols
 from src.data_sources.tvremix_client import (
     fetch_earnings_calendar,
+    fetch_intraday_screener_fields,
     fetch_multi_timeframe_technicals_batch,
     fetch_news_for_symbols,
     fetch_quotes_batch,
@@ -24,7 +25,7 @@ def _first_non_empty(item: dict, keys: list[str]):
     return None
 
 
-def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int = 10, technical_top_n: int = 25, max_symbols: int | None = None, skip_news: bool = False, skip_earnings: bool = True) -> dict:
+def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int = 10, technical_top_n: int = 25, max_symbols: int | None = None, skip_news: bool = False, skip_earnings: bool = True, use_intraday: bool = True) -> dict:
     if source.strip().lower() != "tvremix":
         raise ValueError("Por ahora scan-nasdaq100 solo soporta --source tvremix")
 
@@ -36,12 +37,17 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
 
     quotes_map, quote_warnings = fetch_quotes_batch(universe_symbols)
     global_warnings.extend(quote_warnings)
+    intraday_map: dict[str, dict] = {}
+    if use_intraday:
+        intraday_map, intraday_warnings = fetch_intraday_screener_fields(universe_symbols)
+        global_warnings.extend(intraday_warnings)
 
     candidates: list[dict] = []
     for symbol in universe_symbols:
         key = symbol.upper()
         quote_raw = quotes_map.get(key, {})
         quote = _extract_quote_core(quote_raw)
+        intraday_raw = intraday_map.get(key) or intraday_map.get(f"NASDAQ:{key}") or {}
 
         latest_titles = []
         earnings_nearby = False
@@ -54,8 +60,20 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
             "price": quote.get("price") or quote.get("last_price") or quote.get("close"),
             "change_percent": quote.get("change_percent"),
             "volume": quote.get("volume"),
-            "market_cap": quote.get("market_cap"),
-            "pe_ratio": quote.get("pe_ratio"),
+            "market_cap": quote.get("market_cap") or intraday_raw.get("market_cap_basic"),
+            "pe_ratio": quote.get("pe_ratio") or intraday_raw.get("price_earnings_ttm"),
+            "intraday_close": intraday_raw.get("close"),
+            "intraday_change": intraday_raw.get("change"),
+            "intraday_change_abs": intraday_raw.get("change_abs"),
+            "intraday_volume": intraday_raw.get("volume"),
+            "avg_volume_10d": intraday_raw.get("average_volume_10d_calc"),
+            "rvol_10d": intraday_raw.get("relative_volume_10d_calc"),
+            "vwap": intraday_raw.get("VWAP"),
+            "premarket_change": intraday_raw.get("premarket_change"),
+            "premarket_gap": intraday_raw.get("premarket_gap"),
+            "premarket_high": intraday_raw.get("premarket_high"),
+            "premarket_low": intraday_raw.get("premarket_low"),
+            "gap": intraday_raw.get("gap"),
             "technical_rating": None,
             "rsi": None,
             "latest_news_titles": latest_titles,
@@ -68,6 +86,12 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
             "warnings": [],
             "technical_source": None,
         }
+        if candidate.get("price") in (None, "") and candidate.get("intraday_close") not in (None, ""):
+            candidate["price"] = candidate["intraday_close"]
+        if candidate.get("volume") in (None, "") and candidate.get("intraday_volume") not in (None, ""):
+            candidate["volume"] = candidate["intraday_volume"]
+        if candidate.get("change_percent") in (None, "") and candidate.get("intraday_change") not in (None, ""):
+            candidate["change_percent"] = candidate["intraday_change"]
 
         cp = candidate.get("change_percent")
         if cp not in (None, ""):
@@ -293,6 +317,12 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
     technical_unavailable = max(len(technical_symbols) - technical_batch_available, 0)
 
     quotes_available = sum(1 for c in candidates if c.get("price") not in (None, ""))
+    intraday_available = sum(1 for c in candidates if c.get("intraday_close") not in (None, ""))
+    rvol_available = sum(1 for c in candidates if c.get("rvol_10d") not in (None, ""))
+    vwap_available = sum(1 for c in candidates if c.get("vwap") not in (None, ""))
+    premarket_available = sum(
+        1 for c in candidates if c.get("premarket_change") not in (None, "") or c.get("premarket_gap") not in (None, "")
+    )
     technicals_available = sum(1 for c in candidates if c.get("technical_rating") not in (None, "") or c.get("rsi") not in (None, ""))
     candidates_with_core_market_data = sum(
         1
@@ -325,6 +355,10 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
 
     if any(degraded_reasons):
         scanner_mode = "degraded"
+    elif use_intraday and intraday_available > 0 and catalyst_queries_enabled:
+        scanner_mode = "intraday_plus_catalysts"
+    elif use_intraday and intraday_available > 0:
+        scanner_mode = "technical_intraday"
     elif catalyst_queries_enabled:
         scanner_mode = "technical_plus_catalysts"
     else:
@@ -335,6 +369,10 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
         "candidates_evaluated": len(candidates),
         "candidates_shown": min(shown_limit, len(ranked_final)),
         "quotes_available": quotes_available,
+        "intraday_available": intraday_available,
+        "rvol_available": rvol_available,
+        "vwap_available": vwap_available,
+        "premarket_available": premarket_available,
         "technicals_available": technicals_available,
         "technicals_batch_available": technical_batch_available,
         "technicals_fallback_individual": technical_fallback_count,

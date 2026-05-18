@@ -332,6 +332,73 @@ def normalize_quote_batch_payload(
     }
 
 
+def _extract_screener_items(payload: Any) -> list[dict[str, Any]]:
+    if isinstance(payload, list):
+        return [x for x in payload if isinstance(x, dict)]
+    if isinstance(payload, dict):
+        for key in ("items", "data", "results", "rows", "symbols"):
+            candidate = payload.get(key)
+            if isinstance(candidate, list):
+                return [x for x in candidate if isinstance(x, dict)]
+    return []
+
+
+def fetch_intraday_screener_fields(symbols: list[str]) -> tuple[dict[str, dict[str, Any]], list[str]]:
+    normalized = [normalize_tv_symbol(symbol) for symbol in symbols if str(symbol).strip()]
+    if not normalized:
+        return {}, ["No se recibieron símbolos para run_screener."]
+    requested_short = {sym.split(":", 1)[-1].upper() for sym in normalized}
+
+    arguments = {
+        "market": "america",
+        "sortBy": "relative_volume_10d_calc",
+        "sortOrder": "desc",
+        "limit": max(300, len(normalized) * 4),
+        "columns": [
+            "name",
+            "close",
+            "change",
+            "change_abs",
+            "volume",
+            "average_volume_10d_calc",
+            "relative_volume_10d_calc",
+            "VWAP",
+            "premarket_change",
+            "premarket_gap",
+            "premarket_high",
+            "premarket_low",
+            "gap",
+            "market_cap_basic",
+            "price_earnings_ttm",
+        ],
+    }
+
+    try:
+        raw = _extract_result_payload(call_tool("run_screener", arguments))
+        parsed, warnings = parse_mcp_text_payload(raw)
+    except Exception as exc:
+        return {}, [f"run_screener falló: {exc}"]
+
+    items = _extract_screener_items(parsed)
+    records: dict[str, dict[str, Any]] = {}
+    for item in items:
+        raw_symbol = item.get("name") or item.get("symbol") or item.get("ticker")
+        if raw_symbol in (None, ""):
+            continue
+        short = str(raw_symbol).split(":", 1)[-1].upper()
+        if short not in requested_short:
+            continue
+        records[short] = item
+        records[f"NASDAQ:{short}"] = item
+
+    if not records:
+        warnings.append("run_screener sin símbolos parseables del universo solicitado.")
+    elif len({k for k in records if ":" not in k}) < len(requested_short):
+        warnings.append("run_screener devolvió cobertura parcial del universo solicitado.")
+
+    return records, warnings
+
+
 def fetch_technicals_batch(symbols: list[str], interval: str = "1D") -> tuple[dict[str, dict[str, Any]], list[str]]:
     warnings: list[str] = []
     records: dict[str, dict[str, Any]] = {}

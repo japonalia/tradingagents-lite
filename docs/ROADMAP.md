@@ -5,10 +5,10 @@
 3. ✅ **Capa de proveedores activa**: abstracción de fuentes con implementación productiva en `yfinance`.
 4. ✅ **TVRemix schema diagnostic completado**: inventario local de tools disponible y persistido en reportes sanitizados.
 5. ✅ **TVRemix ticker individual funcionando**: mapeo inicial de ticker TVRemix (`get_quote`, `get_technicals`, `get_financials`, `get_news`, `get_ohlcv`) con fallback a yfinance.
-6. ✅ **Paso actual**: limpieza del reporte del scanner Nasdaq 100 y control de ruido de catalizadores (warnings cortos por ticker, agrupación global de ruido news/earnings y flags CLI para omitir fuentes ruidosas).
-7. 🔜 **Próximos pasos**: RVOL, VWAP, premarket high/low y fuerza relativa vs QQQ.
+6. ✅ **Paso actual**: integración inicial intradía en scanner Nasdaq 100 vía `run_screener` (RVOL, VWAP, gap/premarket + modo `technical_intraday`).
+7. 🔜 **Próximos pasos**: fuerza relativa vs QQQ, niveles intradía desde `get_ohlcv` y catalizadores reales.
 
 
 ## Estado intradía TVRemix (experimental)
-- Paso actual: diagnóstico de disponibilidad de RVOL, VWAP y premarket en tools de TVRemix.
-- Próximos pasos: mapear campos útiles validados e integrarlos progresivamente en el scanner de acción del día.
+- Paso actual: integración básica de RVOL/VWAP/premarket usando `run_screener`, con fallback a quotes+técnicos cuando falte intradía.
+- Próximos pasos: fuerza relativa vs QQQ, niveles intradía derivados de barras `get_ohlcv`, y mejor capa de catalizadores verificables.
