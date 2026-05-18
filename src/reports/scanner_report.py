@@ -56,13 +56,15 @@ def generate_scanner_report(candidates, output_path, source="tvremix", global_wa
     sorted_candidates = sorted(candidates, key=lambda x: x.get("total_score", 0), reverse=True)
 
     for idx, c in enumerate(sorted_candidates, start=1):
-        local_warnings = [str(w)[:120] for w in (c.get("warnings") or c.get("reasons") or [])]
+        local_warnings = []
+        for warning in (c.get("warnings") or c.get("reasons") or []):
+            text = str(warning).strip()
+            if not text:
+                continue
+            if "summary_markdown" in text.lower() or text.lower().startswith("tech_batch:"):
+                continue
+            local_warnings.append(text[:120])
         warnings = "; ".join(local_warnings[:3]) or "-"
-        tech_summary = (c.get("technical_batch_summary") or "").strip()
-        if tech_summary:
-            compact = " ".join(tech_summary.split())[:120]
-            if compact:
-                warnings = f"{warnings}; tech_batch: {compact}" if warnings != "-" else f"tech_batch: {compact}"
         lines.append(
             f"| {idx} | {_fmt(c.get('ticker'))} | {_fmt(c.get('price'))} | {_fmt(c.get('change_percent'))} | {_fmt(c.get('volume'))} | {_fmt(c.get('technical_rating'))} | {_fmt(c.get('rsi'))} | {_fmt(c.get('catalyst_summary'))} | {_fmt(c.get('total_score'))} | {warnings} |"
         )

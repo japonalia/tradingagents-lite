@@ -149,5 +149,12 @@ Scanner Nasdaq 100 operativo: usa `config/nasdaq100_symbols.yaml` (universo ampl
 Parámetros del scanner Nasdaq 100:
 - `--limit`: limita solo cuántas filas se muestran en el ranking final del reporte.
 - `--technical-top-n`: limita cuántas candidatas preliminares reciben consultas técnicas (`analyze_multi_timeframe_batch` y fallback individual).
-- `--catalyst-top-n`: limita cuántas candidatas preliminares reciben consultas de `get_news` + `get_earnings_calendar`.
+- `--catalyst-top-n`: limita cuántas candidatas preliminares reciben consultas de catalizadores.
+- `--skip-news`: omite consulta de `get_news` para reducir ruido/costo cuando solo quieres técnicos.
+- `--skip-earnings` / `--no-skip-earnings`: controla consulta de `get_earnings_calendar` (por defecto `--skip-earnings` activado para evitar ruido y rate limits).
 - `--max-symbols`: límite opcional del universo evaluado (solo debug/pruebas). Por defecto `None` para evaluar todo `config/nasdaq100_symbols.yaml`.
+
+
+Recomendación operativa del scanner:
+- Primera pasada: usar scanner sin earnings (default) para maximizar estabilidad y legibilidad del reporte.
+- Activar `--no-skip-earnings` solo cuando necesites confirmar eventos cercanos y aceptes mayor ruido/riesgo de rate limit.
