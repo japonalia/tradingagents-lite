@@ -68,6 +68,15 @@ El script prueba `get_quote`, `get_technicals`, `get_financials`, `get_news`, `g
 reports/generated/tvremix_NVDA_test.json
 ```
 
+
+Diagnóstico específico de `analyze_multi_timeframe_batch`:
+
+```bash
+PYTHONPATH=. python tools/test_tvremix_multitimeframe_batch.py
+```
+
+Genera `reports/generated/tvremix_multitimeframe_batch_test.json` con salida sanitizada y campos detectados por símbolo.
+
 ## Uso
 
 Ejecuta el comando:

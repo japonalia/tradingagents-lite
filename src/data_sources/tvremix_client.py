@@ -370,7 +370,27 @@ def fetch_multi_timeframe_technicals_batch(
     requested_short = {symbol.split(":", 1)[-1].upper() for symbol in requested_tv}
     key_lookup = {symbol.split(":", 1)[-1].upper(): symbol for symbol in requested_tv}
 
-    def _collect_symbol_record(symbol_key: str, item: Any) -> None:
+    def _lc_key_map(item: dict[str, Any]) -> dict[str, Any]:
+        return {str(k).lower(): v for k, v in item.items()}
+
+    def _pick(item: dict[str, Any], *names: str) -> Any:
+        lc = _lc_key_map(item)
+        for name in names:
+            if name.lower() in lc and lc[name.lower()] not in (None, ""):
+                return lc[name.lower()]
+        return None
+
+    def _as_number(value: Any) -> Any:
+        if isinstance(value, (int, float)):
+            return value
+        if isinstance(value, str):
+            try:
+                return float(value.strip())
+            except Exception:
+                return value
+        return value
+
+    def _collect_symbol_record(symbol_key: str, item: Any, summary_text: str | None = None) -> None:
         if not isinstance(item, dict):
             return
         normalized_key = str(symbol_key or "").upper().strip()
@@ -379,44 +399,54 @@ def fetch_multi_timeframe_technicals_batch(
         mapped_tv = normalized_key if ":" in normalized_key else key_lookup.get(normalized_key)
         if not mapped_tv:
             return
+
+        technical_rating = _pick(item, "technical_rating", "recommendation", "rating")
+        technical_rating_value = _pick(item, "technical_rating_value", "rating_value")
         compact = {
-            "technical_rating": item.get("technical_rating")
-            or item.get("recommendation")
-            or item.get("rating"),
-            "rsi": item.get("rsi"),
-            "macd": item.get("macd"),
-            "summary_markdown": item.get("summary_markdown"),
+            "timeframe": _pick(item, "timeframe", "interval") or (timeframe_list[0] if timeframe_list else None),
+            "technical_rating": technical_rating,
+            "technical_rating_value": _as_number(technical_rating_value),
+            "rsi": _as_number(_pick(item, "rsi", "rsi14")),
+            "macd": _as_number(_pick(item, "macd", "macd_line")),
+            "macd_signal": _as_number(_pick(item, "macd_signal", "signal")),
+            "macd_hist": _as_number(_pick(item, "macd_hist", "macd_histogram", "histogram")),
+            "sma20": _as_number(_pick(item, "sma20", "sma_20")),
+            "sma50": _as_number(_pick(item, "sma50", "sma_50")),
+            "sma200": _as_number(_pick(item, "sma200", "sma_200")),
+            "ema20": _as_number(_pick(item, "ema20", "ema_20")),
+            "ema50": _as_number(_pick(item, "ema50", "ema_50")),
+            "atr": _as_number(_pick(item, "atr")),
+            "adx": _as_number(_pick(item, "adx")),
+            "oscillator_bias": _pick(item, "oscillator_bias", "oscillators_bias"),
+            "ma_bias": _pick(item, "ma_bias", "moving_averages_bias"),
+            "summary_markdown": summary_text or _pick(item, "summary_markdown", "summary"),
         }
         compact = {k: v for k, v in compact.items() if v not in (None, "")}
         if compact:
             records[mapped_tv] = compact
             records[mapped_tv.split(":", 1)[-1].upper()] = compact
 
+    summary_markdown = parsed.get("summary_markdown") if isinstance(parsed, dict) else None
+
     if isinstance(parsed, dict):
-        symbol_like_keys = ("symbols", "data", "results", "items", "analysis")
-        handled = False
-        for root_key in symbol_like_keys:
-            root = parsed.get(root_key)
-            if isinstance(root, dict):
-                handled = True
-                for key, value in root.items():
-                    if isinstance(value, dict):
-                        _collect_symbol_record(str(key), value)
-            elif isinstance(root, list):
-                handled = True
-                for item in root:
-                    if isinstance(item, dict):
-                        symbol_key = item.get("symbol") or item.get("ticker") or item.get("tv_symbol")
-                        _collect_symbol_record(str(symbol_key or ""), item)
-        if not handled:
-            for key, value in parsed.items():
+        data_root = parsed.get("data", parsed)
+        if isinstance(data_root, dict):
+            for key, value in data_root.items():
                 if isinstance(value, dict):
-                    _collect_symbol_record(str(key), value)
-    elif isinstance(parsed, list):
-        for item in parsed:
-            if isinstance(item, dict):
-                symbol_key = item.get("symbol") or item.get("ticker") or item.get("tv_symbol")
-                _collect_symbol_record(str(symbol_key or ""), item)
+                    payload = value.get("1D") if isinstance(value.get("1D"), dict) else value
+                    _collect_symbol_record(str(key), payload, summary_markdown)
+                elif isinstance(value, list):
+                    for list_item in value:
+                        if isinstance(list_item, dict):
+                            tf = _pick(list_item, "timeframe", "interval")
+                            if tf in (None, "", "1D"):
+                                sym = _pick(list_item, "symbol", "ticker", "tv_symbol") or key
+                                _collect_symbol_record(str(sym), list_item, summary_markdown)
+        elif isinstance(data_root, list):
+            for item in data_root:
+                if isinstance(item, dict):
+                    sym = _pick(item, "symbol", "ticker", "tv_symbol")
+                    _collect_symbol_record(str(sym or ""), item, summary_markdown)
 
     if not records:
         raw_keys = list(parsed.keys()) if isinstance(parsed, dict) else type(parsed).__name__

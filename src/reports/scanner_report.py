@@ -18,6 +18,9 @@ def generate_scanner_report(candidates, output_path, source="tvremix", global_wa
     quotes_available = int((metrics or {}).get("quotes_available", 0))
     technicals_available = int((metrics or {}).get("technicals_available", 0))
     catalysts_queried = int((metrics or {}).get("catalysts_queried", 0))
+    technicals_batch_available = int((metrics or {}).get("technicals_batch_available", 0))
+    technicals_fallback_individual = int((metrics or {}).get("technicals_fallback_individual", 0))
+    technicals_not_available = int((metrics or {}).get("technicals_not_available", 0))
     complete = sum(1 for c in candidates if not c.get("missing_fields"))
     missing = total - complete
     unavailable = sorted({field for c in candidates for field in (c.get("missing_fields") or [])})
@@ -36,6 +39,9 @@ def generate_scanner_report(candidates, output_path, source="tvremix", global_wa
         f"- Candidatas mostradas: **{shown}**",
         f"- Quotes disponibles: **{quotes_available}**",
         f"- Técnicos disponibles: **{technicals_available}**",
+        f"- Técnicos batch disponibles: **{technicals_batch_available}**",
+        f"- Técnicos fallback individuales: **{technicals_fallback_individual}**",
+        f"- Técnicos no disponibles: **{technicals_not_available}**",
         f"- Catalizadores consultados: **{catalysts_queried}**",
         f"- Completas: **{complete}**",
         f"- Con datos faltantes: **{missing}**",
@@ -52,6 +58,11 @@ def generate_scanner_report(candidates, output_path, source="tvremix", global_wa
     for idx, c in enumerate(sorted_candidates, start=1):
         local_warnings = [str(w)[:120] for w in (c.get("warnings") or c.get("reasons") or [])]
         warnings = "; ".join(local_warnings[:3]) or "-"
+        tech_summary = (c.get("technical_batch_summary") or "").strip()
+        if tech_summary:
+            compact = " ".join(tech_summary.split())[:120]
+            if compact:
+                warnings = f"{warnings}; tech_batch: {compact}" if warnings != "-" else f"tech_batch: {compact}"
         lines.append(
             f"| {idx} | {_fmt(c.get('ticker'))} | {_fmt(c.get('price'))} | {_fmt(c.get('change_percent'))} | {_fmt(c.get('volume'))} | {_fmt(c.get('technical_rating'))} | {_fmt(c.get('rsi'))} | {_fmt(c.get('catalyst_summary'))} | {_fmt(c.get('total_score'))} | {warnings} |"
         )
