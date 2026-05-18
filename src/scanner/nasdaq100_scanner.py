@@ -24,7 +24,7 @@ def _first_non_empty(item: dict, keys: list[str]):
     return None
 
 
-def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int = 10, technical_top_n: int = 25, max_symbols: int | None = None) -> dict:
+def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int = 10, technical_top_n: int = 25, max_symbols: int | None = None, skip_news: bool = False, skip_earnings: bool = True) -> dict:
     if source.strip().lower() != "tvremix":
         raise ValueError("Por ahora scan-nasdaq100 solo soporta --source tvremix")
 
@@ -193,18 +193,19 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
     rate_limit_reached = False
     earnings_rate_limit_reached = False
 
-    try:
-        news_map, news_warnings = fetch_news_for_symbols(catalyst_symbols, limit_per_symbol=3)
-        global_warnings.extend(news_warnings)
-    except Exception as exc:
-        msg = str(exc)
-        if "429" in msg or "Too Many Requests" in msg:
-            rate_limit_reached = True
-            global_warnings.append("rate limit alcanzado: se omiten noticias/earnings restantes")
-        else:
-            global_warnings.append(f"get_news fallo global: {exc}")
+    if not skip_news:
+        try:
+            news_map, news_warnings = fetch_news_for_symbols(catalyst_symbols, limit_per_symbol=3)
+            global_warnings.extend(news_warnings)
+        except Exception as exc:
+            msg = str(exc)
+            if "429" in msg or "Too Many Requests" in msg:
+                rate_limit_reached = True
+                global_warnings.append("rate limit alcanzado: se omiten noticias/earnings restantes")
+            else:
+                global_warnings.append(f"get_news fallo global: {exc}")
 
-    if not rate_limit_reached:
+    if not rate_limit_reached and not skip_earnings:
         try:
             earnings_map, earnings_warnings = fetch_earnings_calendar(catalyst_symbols)
             global_warnings.extend(earnings_warnings)
@@ -250,12 +251,20 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
         candidate.update(score_candidate(candidate))
 
     no_headlines_symbols = 0
+    no_earnings_parseable_symbols = 0
     for candidate in candidates:
-        if candidate["ticker"].upper() in catalyst_symbol_keys and not candidate.get("latest_news_titles"):
+        if candidate["ticker"].upper() not in catalyst_symbol_keys:
+            continue
+        if not skip_news and not candidate.get("latest_news_titles"):
             no_headlines_symbols += 1
+        if not skip_earnings and not candidate.get("earnings_items"):
+            no_earnings_parseable_symbols += 1
 
-    if no_headlines_symbols:
+    if not skip_news and no_headlines_symbols:
         global_warnings.append(f"get_news sin titulares parseables para {no_headlines_symbols} símbolos")
+
+    if not skip_earnings and no_earnings_parseable_symbols:
+        global_warnings.append(f"get_earnings_calendar sin datos parseables para {no_earnings_parseable_symbols} símbolos")
 
     if earnings_rate_limit_reached:
         global_warnings.append("rate limit alcanzado en earnings; se detuvieron consultas adicionales")
@@ -264,7 +273,13 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
     seen = set()
     for warning in global_warnings:
         key = warning.strip()
-        if not key or key in seen:
+        if not key:
+            continue
+        if "get_news" in key and "sin titulares parseables" not in key and "fallo global" not in key and "rate limit" not in key:
+            continue
+        if "get_earnings_calendar" in key and "sin datos parseables" not in key and "fallo global" not in key and "rate limit" not in key:
+            continue
+        if key in seen:
             continue
         seen.add(key)
         deduped_global_warnings.append(key)
