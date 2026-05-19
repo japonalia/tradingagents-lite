@@ -45,6 +45,7 @@ def generate_scanner_report(candidates, output_path, source="tvremix", global_wa
     ohlcv_intraday_requested = int((metrics or {}).get("ohlcv_intraday_requested", 0))
     ohlcv_intraday_available = int((metrics or {}).get("ohlcv_intraday_available", 0))
     ohlcv_vwap_available = int((metrics or {}).get("ohlcv_vwap_available", 0))
+    ohlcv_visible_in_top = int((metrics or {}).get("ohlcv_visible_in_top", 0))
     complete = sum(1 for c in candidates if not c.get("missing_fields"))
     missing = total - complete
     unavailable = sorted({field for c in candidates for field in (c.get("missing_fields") or [])})
@@ -85,6 +86,7 @@ def generate_scanner_report(candidates, output_path, source="tvremix", global_wa
         f"- Fuerza relativa disponible: **{relative_strength_available}/{total}**",
         f"- OHLCV intradía consultados: **{ohlcv_intraday_requested}**",
         f"- OHLCV intradía disponibles: **{ohlcv_intraday_available}**",
+        f"- OHLCV visibles en Top mostrado: **{ohlcv_visible_in_top}**",
         f"- VWAP calculado desde barras disponible: **{ohlcv_vwap_available}**",
         f"- Completas: **{complete}**",
         f"- Con datos faltantes: **{missing}** (incluye símbolos fuera del subconjunto técnico consultado)",
@@ -117,7 +119,7 @@ def generate_scanner_report(candidates, output_path, source="tvremix", global_wa
         lines.append("- Fuerza relativa no disponible en esta corrida.")
 
     lines.extend(["", "## Niveles intradía destacados", ""])
-    level_candidates = [c for c in sorted_candidates if c.get("intraday_high") not in (None, "")][:5]
+    level_candidates = [c for c in sorted_candidates if c.get("intraday_high") not in (None, "")]
     if level_candidates:
         lines.extend([
             "| Ticker | High | Low | Último cierre | VWAP barras | Dist. VWAP % | Rango % | Cerca high | Cerca low | Soporte | Resistencia |",

@@ -27,6 +27,18 @@ def _first_non_empty(item: dict, keys: list[str]):
     return None
 
 
+def _dedup_messages(values: list[str] | None) -> list[str]:
+    seen = set()
+    out: list[str] = []
+    for value in values or []:
+        text = str(value).strip()
+        key = text.lower()
+        if text and key not in seen:
+            seen.add(key)
+            out.append(text)
+    return out
+
+
 def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int = 10, technical_top_n: int = 25, intraday_top_n: int = 10, ohlcv_top_n: int = 5, ohlcv_interval: str = "5m", max_symbols: int | None = None, skip_news: bool = False, skip_earnings: bool = True, use_intraday: bool = True, use_ohlcv_levels: bool = True) -> dict:
     if source.strip().lower() != "tvremix":
         raise ValueError("Por ahora scan-nasdaq100 solo soporta --source tvremix")
@@ -110,6 +122,8 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
             "technical_source": None,
             "qqq_change_percent": qqq_change_percent,
             "relative_strength_vs_qqq": None,
+            "use_intraday": use_intraday,
+            "intraday_expected": use_intraday,
         }
         if candidate.get("price") in (None, "") and candidate.get("intraday_close") not in (None, ""):
             candidate["price"] = candidate["intraday_close"]
@@ -146,6 +160,8 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
 
         candidate["warnings"].extend(candidate["catalyst_warnings"])
         candidate.update(score_candidate(candidate))
+        candidate["warnings"] = _dedup_messages(candidate.get("warnings"))
+        candidate["reasons"] = _dedup_messages(candidate.get("reasons"))
         candidate["preliminary_score"] = candidate.get("total_score", 0)
         candidates.append(candidate)
 
@@ -189,29 +205,8 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
         "ohlcv_intraday_available": 0,
         "ohlcv_vwap_available": 0,
     }
-    if use_ohlcv_levels and max(0, int(ohlcv_top_n)) > 0:
-        ranked_for_ohlcv = sorted(candidates, key=lambda c: c.get("total_score", 0), reverse=True)
-        ohlcv_level_symbols = [c["ticker"] for c in ranked_for_ohlcv[: max(0, int(ohlcv_top_n))]]
-        try:
-            ohlcv_levels_map, ohlcv_warnings, ohlcv_level_diag = fetch_intraday_ohlcv_levels(
-                ohlcv_level_symbols, interval=ohlcv_interval, count=100
-            )
-            global_warnings.extend(ohlcv_warnings)
-        except Exception as exc:
-            global_warnings.append(f"get_ohlcv intradía falló globalmente: {exc}")
-        ohlcv_symbol_keys = {x.upper() for x in ohlcv_level_symbols}
-        for candidate in candidates:
-            key = candidate["ticker"].upper()
-            if key not in ohlcv_symbol_keys:
-                continue
-            levels = ohlcv_levels_map.get(key) or ohlcv_levels_map.get(f"NASDAQ:{key}") or {}
-            if not levels:
-                candidate["warnings"].append("niveles intradía OHLCV no disponibles")
-                candidate.update(score_candidate(candidate))
-                continue
-            candidate.update(levels)
-            candidate.update(score_candidate(candidate))
-    elif not use_ohlcv_levels:
+    ohlcv_visible_in_top = 0
+    if not use_ohlcv_levels:
         global_warnings.append("niveles intradía OHLCV omitidos por --skip-ohlcv-levels")
 
     ranked = sorted(candidates, key=lambda c: c.get("total_score", 0), reverse=True)
@@ -277,6 +272,8 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
         if key not in technical_symbol_keys:
             candidate["warnings"].append("technicals omitidos fuera de technical_top_n")
             candidate.update(score_candidate(candidate))
+            candidate["warnings"] = _dedup_messages(candidate.get("warnings"))
+            candidate["reasons"] = _dedup_messages(candidate.get("reasons"))
             continue
         tech_raw = technicals_map.get(key, {})
         tech_data = tech_raw.get("data") if isinstance(tech_raw, dict) and isinstance(tech_raw.get("data"), dict) else tech_raw
@@ -308,6 +305,8 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
             candidate["technical_source"] = "fallback_individual"
         candidate["missing_fields"] = [k for k in ["price", "change_percent", "volume", "technical_rating", "rsi"] if candidate.get(k) in (None, "")]
         candidate.update(score_candidate(candidate))
+        candidate["warnings"] = _dedup_messages(candidate.get("warnings"))
+        candidate["reasons"] = _dedup_messages(candidate.get("reasons"))
 
     top_n = max(0, int(catalyst_top_n))
     catalyst_symbols = [c["ticker"] for c in ranked[:top_n]]
@@ -346,6 +345,8 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
         key = candidate["ticker"].upper()
         if key not in catalyst_symbol_keys:
             candidate.update(score_candidate(candidate))
+            candidate["warnings"] = _dedup_messages(candidate.get("warnings"))
+            candidate["reasons"] = _dedup_messages(candidate.get("reasons"))
             continue
 
         news_items = news_map.get(key, [])
@@ -374,6 +375,35 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
         candidate["has_recent_catalyst"] = has_recent_catalyst
         candidate["catalyst_summary"] = catalyst_summary
         candidate.update(score_candidate(candidate))
+        candidate["warnings"] = _dedup_messages(candidate.get("warnings"))
+        candidate["reasons"] = _dedup_messages(candidate.get("reasons"))
+
+    if use_ohlcv_levels and max(0, int(ohlcv_top_n)) > 0:
+        ranked_for_ohlcv = sorted(candidates, key=lambda c: c.get("total_score", 0), reverse=True)
+        ohlcv_level_symbols = [c["ticker"] for c in ranked_for_ohlcv[: max(0, int(ohlcv_top_n))]]
+        try:
+            ohlcv_levels_map, ohlcv_warnings, ohlcv_level_diag = fetch_intraday_ohlcv_levels(
+                ohlcv_level_symbols, interval=ohlcv_interval, count=100
+            )
+            global_warnings.extend(ohlcv_warnings)
+        except Exception as exc:
+            global_warnings.append(f"get_ohlcv intradía falló globalmente: {exc}")
+        ohlcv_symbol_keys = {x.upper() for x in ohlcv_level_symbols}
+        for candidate in candidates:
+            key = candidate["ticker"].upper()
+            if key not in ohlcv_symbol_keys:
+                continue
+            levels = ohlcv_levels_map.get(key) or ohlcv_levels_map.get(f"NASDAQ:{key}") or {}
+            if not levels:
+                candidate["warnings"].append("niveles intradía OHLCV no disponibles")
+                candidate.update(score_candidate(candidate))
+                candidate["warnings"] = _dedup_messages(candidate.get("warnings"))
+                candidate["reasons"] = _dedup_messages(candidate.get("reasons"))
+                continue
+            candidate.update(levels)
+            candidate.update(score_candidate(candidate))
+            candidate["warnings"] = _dedup_messages(candidate.get("warnings"))
+            candidate["reasons"] = _dedup_messages(candidate.get("reasons"))
 
     no_headlines_symbols = 0
     no_earnings_parseable_symbols = 0
@@ -481,6 +511,7 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
         "ohlcv_intraday_requested": int(ohlcv_level_diag.get("ohlcv_intraday_requested", 0)),
         "ohlcv_intraday_available": int(ohlcv_level_diag.get("ohlcv_intraday_available", 0)),
         "ohlcv_vwap_available": int(ohlcv_level_diag.get("ohlcv_vwap_available", 0)),
+        "ohlcv_visible_in_top": int(ohlcv_visible_in_top),
         "ohlcv_interval": ohlcv_interval,
         "intraday_via_run_screener": intraday_source_counts["run_screener"],
         "intraday_via_get_symbol_data": intraday_source_counts["get_symbol_data"],
@@ -498,3 +529,12 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
         "candidates": ranked_final[:shown_limit],
         "global_warnings": deduped_global_warnings,
     }
+    ohlcv_visible_in_top = sum(
+        1
+        for c in ranked_final[:shown_limit]
+        if c.get("intraday_high") not in (None, "")
+    )
+    if ohlcv_intraday_requested > 0 and ohlcv_visible_in_top < ohlcv_intraday_requested:
+        deduped_global_warnings.append(
+            f"OHLCV calculado para {ohlcv_intraday_requested} candidatos; {ohlcv_visible_in_top} visible en Top mostrado tras reordenación."
+        )
