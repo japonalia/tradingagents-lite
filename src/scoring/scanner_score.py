@@ -26,6 +26,7 @@ def score_candidate(candidate: dict) -> dict:
     for warning in (candidate.get("warnings") or []):
         _append_unique(warnings, str(warning).strip())
     penalties: list[str] = []
+    intraday_expected = bool(candidate.get("intraday_expected") or candidate.get("use_intraday"))
 
     cp = _to_float(candidate.get("change_percent"))
     rvol = _to_float(candidate.get("rvol_10d"))
@@ -161,6 +162,23 @@ def score_candidate(candidate: dict) -> dict:
         penalties.append("Sin catalizador confirmado.")
     catalyst = min(20.0, catalyst)
 
+    if intraday_expected:
+        has_rvol = rvol is not None
+        has_vwap = vwap is not None
+        if not has_rvol and not has_vwap:
+            _append_unique(warnings, "Sin RVOL/VWAP intradía.")
+            penalties.append("Penalización por falta de RVOL/VWAP intradía.")
+            total_intraday_penalty = -6.0
+            intraday = max(0.0, intraday + total_intraday_penalty)
+        elif not has_rvol and has_vwap:
+            _append_unique(warnings, "RVOL no disponible.")
+            penalties.append("Penalización por RVOL faltante.")
+            intraday = max(0.0, intraday - 3.0)
+        elif has_rvol and not has_vwap:
+            _append_unique(warnings, "VWAP no disponible.")
+            penalties.append("Penalización por VWAP faltante.")
+            intraday = max(0.0, intraday - 2.0)
+
     # Data quality: 0-20
     data_quality = max(0.0, 20.0 - len(set(missing_fields)) * 4.0)
 
@@ -190,6 +208,8 @@ def score_candidate(candidate: dict) -> dict:
             total = min(total, 68.0)
         elif rvol < 0.75:
             total = min(total, 72.0)
+    if intraday_expected and rvol is None and vwap is None and not has_recent_catalyst:
+        total = min(total, 70.0)
 
     return {
         "total_score": round(total, 2),
