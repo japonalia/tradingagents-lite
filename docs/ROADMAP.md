@@ -6,11 +6,11 @@
 4. ✅ **TVRemix schema diagnostic completado**: inventario local de tools disponible y persistido en reportes sanitizados.
 5. ✅ **TVRemix ticker individual funcionando**: mapeo inicial de ticker TVRemix (`get_quote`, `get_technicals`, `get_financials`, `get_news`, `get_ohlcv`) con fallback a yfinance.
 6. ✅ **Fuerza relativa vs QQQ en scanner Nasdaq 100**: `RS vs QQQ = cambio de la acción - cambio de QQQ` con warning global si QQQ no está disponible.
-7. ✅ **Paso actual**: niveles intradía desde `get_ohlcv` para Top candidatas preliminares, sin consultar barras para todo el universo.
-8. 🔜 **Próximos pasos**: catalizadores reales/noticias verificables y validación final para GPT.
+7. ✅ **Paso actual**: recalibración intradía del scoring Nasdaq 100 (penalización por RVOL bajo, extensión excesiva y cap de score sin catalizador confirmado).
+8. 🔜 **Próximos pasos**: integrar catalizadores reales/noticias verificables y análisis individual con intradía para validar setups ticker por ticker.
 
 
 ## Estado intradía TVRemix (experimental)
-- Paso actual: niveles intradía derivados de barras `get_ohlcv` para un Top N pequeño (`--ohlcv-top-n`, default 5), con high/low, rango %, último cierre intradía, VWAP aproximado desde barras, distancia a VWAP, cercanía a high/low, soporte y resistencia aproximados.
+- Paso actual: recalibración intradía del ranking para priorizar RVOL suficiente + fuerza real y penalizar movimientos sin volumen, extensiones sobre VWAP y perseguir precio sin confirmación.
 - Mantener: fuerza relativa vs QQQ integrada al ranking y reporte, manteniendo `technical_intraday` cuando hay capa intradía.
-- Próximos pasos: integrar catalizadores reales/noticias verificables y preparar una validación final para uso seguro en GPT.
+- Próximos pasos: integrar catalizadores reales/noticias verificables y profundizar análisis individual con intradía (setup, invalidación, contexto de volumen).

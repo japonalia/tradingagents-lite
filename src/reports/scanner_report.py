@@ -8,6 +8,18 @@ def _fmt(value):
     return "N/A" if value in (None, "") else str(value)
 
 
+def _dedup_texts(values):
+    seen = set()
+    deduped = []
+    for value in values or []:
+        text = str(value).strip()
+        key = text.lower()
+        if text and key not in seen:
+            seen.add(key)
+            deduped.append(text)
+    return deduped
+
+
 def generate_scanner_report(candidates, output_path, source="tvremix", global_warnings=None, metrics=None):
     candidates = [c for c in (candidates or []) if isinstance(c, dict)]
     output = Path(output_path)
@@ -87,11 +99,11 @@ def generate_scanner_report(candidates, output_path, source="tvremix", global_wa
     sorted_candidates = sorted(candidates, key=lambda x: x.get("total_score", 0), reverse=True)
     for idx, c in enumerate(sorted_candidates, start=1):
         local_warnings = []
-        for warning in (c.get("warnings") or c.get("reasons") or []):
-            text = str(warning).strip()
+        for warning in _dedup_texts((c.get("warnings") or []) + (c.get("reasons") or [])):
+            text = warning.strip()
             if text and "summary_markdown" not in text.lower() and not text.lower().startswith("tech_batch:"):
                 local_warnings.append(text[:120])
-        warnings = "; ".join(local_warnings[:3]) or "-"
+        warnings = "; ".join(_dedup_texts(local_warnings)[:3]) or "-"
         gap_pm = f"g:{_fmt(c.get('gap'))}/pm:{_fmt(c.get('premarket_gap'))}"
         lines.append(f"| {idx} | {_fmt(c.get('ticker'))} | {_fmt(c.get('price'))} | {_fmt(c.get('change_percent'))} | {_fmt(c.get('relative_strength_vs_qqq'))} | {_fmt(c.get('volume'))} | {_fmt(c.get('rvol_10d'))} | {_fmt(c.get('vwap'))} | {gap_pm} | {_fmt(c.get('technical_rating'))} | {_fmt(c.get('rsi'))} | {_fmt(c.get('catalyst_summary'))} | {_fmt(c.get('total_score'))} | {warnings} |")
 
