@@ -1,0 +1,22 @@
+[
+  {
+    "symbol": "NASDAQ:DXCM",
+    "error": "TVRemix MCP no está configurado. Define TVREMIX_MCP_URL y TVREMIX_API_KEY."
+  },
+  {
+    "symbol": "NASDAQ:MU",
+    "error": "TVRemix MCP no está configurado. Define TVREMIX_MCP_URL y TVREMIX_API_KEY."
+  },
+  {
+    "symbol": "NASDAQ:ARM",
+    "error": "TVRemix MCP no está configurado. Define TVREMIX_MCP_URL y TVREMIX_API_KEY."
+  },
+  {
+    "symbol": "NASDAQ:MRVL",
+    "error": "TVRemix MCP no está configurado. Define TVREMIX_MCP_URL y TVREMIX_API_KEY."
+  },
+  {
+    "symbol": "NASDAQ:NVDA",
+    "error": "TVRemix MCP no está configurado. Define TVREMIX_MCP_URL y TVREMIX_API_KEY."
+  }
+]

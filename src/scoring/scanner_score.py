@@ -161,6 +161,8 @@ def score_candidate(candidate: dict) -> dict:
     if candidate.get("earnings_nearby"):
         catalyst += 8.0
     has_recent_catalyst = bool(candidate.get("has_recent_catalyst"))
+    if has_recent_catalyst:
+        catalyst += 3.0
     if not has_recent_catalyst:
         catalyst = max(0.0, catalyst - 6.0)
         penalties.append("Sin catalizador confirmado.")
@@ -222,6 +224,8 @@ def score_candidate(candidate: dict) -> dict:
             total = min(total, 72.0)
     if intraday_expected and rvol is None and vwap is None and not has_recent_catalyst:
         total = min(total, 70.0)
+    if rvol is not None and has_recent_catalyst and rvol < 0.5:
+        total = min(total + 4.0, 100.0)
 
     return {
         "total_score": round(total, 2),
