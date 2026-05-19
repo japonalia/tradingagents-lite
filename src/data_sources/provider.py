@@ -1,18 +1,20 @@
 from __future__ import annotations
 
+from typing import Any
+
 from src.data_sources.base import MarketDataResult
 from src.data_sources.tvremix_client import fetch_tvremix_data
 from src.data_sources.yfinance_client import fetch_ticker_data
 
 
-def get_market_data(symbol: str, source: str = "yfinance") -> MarketDataResult:
+def get_market_data(symbol: str, source: str = "yfinance", **kwargs: Any) -> MarketDataResult:
     normalized_source = source.strip().lower()
     if normalized_source == "yfinance":
         return fetch_ticker_data(symbol)
 
     if normalized_source == "tvremix":
         try:
-            return fetch_tvremix_data(symbol)
+            return fetch_tvremix_data(symbol, **kwargs)
         except ValueError:
             raise
         except Exception as exc:

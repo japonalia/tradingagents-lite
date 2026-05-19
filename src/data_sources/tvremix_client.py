@@ -969,7 +969,12 @@ def fetch_intraday_ohlcv_levels(
     }
     return records, warnings, diagnostics
 
-def fetch_tvremix_data(symbol: str) -> MarketDataResult:
+def fetch_tvremix_data(
+    symbol: str,
+    use_intraday: bool = True,
+    use_ohlcv_levels: bool = True,
+    ohlcv_interval: str = "5m",
+) -> MarketDataResult:
     user_symbol = symbol.upper().strip()
     tv_symbol = normalize_tv_symbol(symbol)
     warnings: list[str] = [
@@ -985,6 +990,37 @@ def fetch_tvremix_data(symbol: str) -> MarketDataResult:
     history, ohlcv_warnings = fetch_ohlcv(tv_symbol, interval="1D", count=300)
 
     warnings.extend(quote_warnings + tech_warnings + fin_warnings + news_warnings + ohlcv_warnings)
+
+    intraday_data: dict[str, Any] = {}
+    intraday_levels: dict[str, Any] = {}
+    if use_intraday:
+        symbol_intraday_map, symbol_intraday_warnings, _ = fetch_intraday_symbol_data_batch([tv_symbol])
+        warnings.extend(symbol_intraday_warnings)
+        intraday_data = symbol_intraday_map.get(tv_symbol.upper()) or symbol_intraday_map.get(user_symbol, {})
+    else:
+        warnings.append("capa intradía omitida por --skip-intraday")
+
+    qqq_change_percent = None
+    if use_intraday:
+        try:
+            qqq_map, qqq_warnings = fetch_quotes_batch(["QQQ"])
+            warnings.extend(qqq_warnings)
+            qqq_quote = qqq_map.get("QQQ") or qqq_map.get("NASDAQ:QQQ") or {}
+            qqq_change_percent = qqq_quote.get("change_percent")
+            if qqq_change_percent in (None, ""):
+                qqq_change_percent = qqq_quote.get("change")
+            qqq_change_percent = float(qqq_change_percent) if qqq_change_percent not in (None, "") else None
+        except Exception:
+            qqq_change_percent = None
+        if qqq_change_percent is None:
+            warnings.append("QQQ no disponible; RS vs QQQ = N/A")
+
+    if use_ohlcv_levels:
+        ohlcv_levels_map, ohlcv_level_warnings, _ = fetch_intraday_ohlcv_levels([tv_symbol], interval=ohlcv_interval)
+        warnings.extend(ohlcv_level_warnings)
+        intraday_levels = ohlcv_levels_map.get(tv_symbol.upper()) or ohlcv_levels_map.get(user_symbol, {})
+    else:
+        warnings.append("niveles intradía OHLCV omitidos por --skip-ohlcv-levels")
 
     quote_data = quote.get("data", {}) if isinstance(quote.get("data"), dict) else quote
     technicals_data = (
@@ -1052,7 +1088,38 @@ def fetch_tvremix_data(symbol: str) -> MarketDataResult:
         "technical_volume": technicals_data.get("volume"),
         "rsi": tech_osc.get("rsi") or technicals_data.get("rsi") or technicals.get("rsi"),
         "ohlcv_rows": len(history),
+        "rvol_10d": intraday_data.get("rvol_10d"),
+        "vwap": intraday_data.get("vwap"),
+        "premarket_change": intraday_data.get("premarket_change"),
+        "premarket_gap": intraday_data.get("premarket_gap"),
+        "premarket_high": intraday_data.get("premarket_high"),
+        "premarket_low": intraday_data.get("premarket_low"),
+        "gap": intraday_data.get("gap"),
+        "intraday_close": intraday_data.get("intraday_close"),
+        "intraday_volume": intraday_data.get("intraday_volume"),
+        "qqq_change_percent": qqq_change_percent,
+        "relative_strength_vs_qqq": None,
+        "intraday_high": intraday_levels.get("intraday_high"),
+        "intraday_low": intraday_levels.get("intraday_low"),
+        "last_close_intraday": intraday_levels.get("last_close_intraday"),
+        "approx_intraday_vwap_from_bars": intraday_levels.get("approx_intraday_vwap_from_bars"),
+        "distance_to_vwap_pct": intraday_levels.get("distance_to_vwap_pct"),
+        "intraday_range_pct": intraday_levels.get("intraday_range_pct"),
+        "support_intraday": intraday_levels.get("support_intraday"),
+        "resistance_intraday": intraday_levels.get("resistance_intraday"),
+        "near_intraday_high": intraday_levels.get("near_intraday_high"),
+        "near_intraday_low": intraday_levels.get("near_intraday_low"),
     }
+
+    symbol_change = market_data.get("change_percent")
+    if symbol_change in (None, ""):
+        symbol_change = intraday_data.get("intraday_change")
+    try:
+        symbol_change_num = float(symbol_change) if symbol_change not in (None, "") else None
+    except (TypeError, ValueError):
+        symbol_change_num = None
+    if qqq_change_percent is not None and symbol_change_num is not None:
+        market_data["relative_strength_vs_qqq"] = round(symbol_change_num - qqq_change_percent, 4)
 
     for key in ("last_price", "volume", "market_cap", "pe_ratio", "eps"):
         if market_data.get(key) is None:
