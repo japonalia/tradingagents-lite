@@ -160,13 +160,40 @@ def _to_record(value: Any) -> dict[str, Any]:
 
 
 def _extract_news_items(payload: Any) -> list[dict[str, Any]]:
+    def _news_from_list(items: list[Any]) -> list[dict[str, Any]]:
+        out: list[dict[str, Any]] = []
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            if isinstance(item.get("content"), dict):
+                nested = item["content"]
+                for key in ("title", "headline", "published", "provider", "source", "url", "summary"):
+                    if nested.get(key) not in (None, "") and item.get(key) in (None, ""):
+                        item[key] = nested.get(key)
+            out.append(item)
+        return out
+
     if isinstance(payload, list):
-        return [x for x in payload if isinstance(x, dict)]
+        return _news_from_list(payload)
     if isinstance(payload, dict):
         for key in ("items", "news", "headlines", "data", "results"):
             candidate = payload.get(key)
             if isinstance(candidate, list):
-                return [x for x in candidate if isinstance(x, dict)]
+                return _news_from_list(candidate)
+        content = payload.get("content")
+        if isinstance(content, list):
+            for block in content:
+                if isinstance(block, dict) and isinstance(block.get("text"), str):
+                    text = block.get("text", "").strip()
+                    if not text:
+                        continue
+                    try:
+                        nested = json.loads(text)
+                    except (TypeError, json.JSONDecodeError):
+                        continue
+                    nested_items = _extract_news_items(nested)
+                    if nested_items:
+                        return nested_items
     return []
 
 

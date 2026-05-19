@@ -10,10 +10,13 @@
 - Market cap: No disponible
 - PER: No disponible
 - EPS: No disponible
+- Sector: No disponible
+- Industria: No disponible
 - Rango 52 semanas: 467.71 - 505.42
 
 ## Calidad de datos
 - Filas históricas diarias disponibles: 64
+- Filas OHLCV (TVRemix): No disponible
 - Campos no disponibles en la fuente: market_cap, pe_ratio, eps
 
 ## Indicadores técnicos

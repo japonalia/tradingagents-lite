@@ -117,6 +117,8 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
             "has_recent_catalyst": has_recent_catalyst,
             "earnings_nearby": earnings_nearby,
             "earnings_items": earnings_items,
+            "catalyst_headlines": [],
+            "catalyst_source_count": 0,
             "catalyst_warnings": [],
             "warnings": [],
             "technical_source": None,
@@ -308,8 +310,11 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
         candidate["warnings"] = _dedup_messages(candidate.get("warnings"))
         candidate["reasons"] = _dedup_messages(candidate.get("reasons"))
 
+    ranked_pre_catalyst = sorted(candidates, key=lambda c: c.get("total_score", 0), reverse=True)
     top_n = max(0, int(catalyst_top_n))
-    catalyst_symbols = [c["ticker"] for c in ranked[:top_n]]
+    shown_limit = max(1, int(limit))
+    ranked_for_catalysts = ranked_pre_catalyst[:shown_limit]
+    catalyst_symbols = [c["ticker"] for c in ranked_for_catalysts[:top_n]]
     catalyst_symbol_keys = {x.upper() for x in catalyst_symbols}
 
     news_map: dict = {}
@@ -317,7 +322,7 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
     rate_limit_reached = False
     earnings_rate_limit_reached = False
 
-    if not skip_news:
+    if top_n > 0 and not skip_news:
         try:
             news_map, news_warnings = fetch_news_for_symbols(catalyst_symbols, limit_per_symbol=3)
             global_warnings.extend(news_warnings)
@@ -329,7 +334,7 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
             else:
                 global_warnings.append(f"get_news fallo global: {exc}")
 
-    if not rate_limit_reached and not skip_earnings:
+    if top_n > 0 and not rate_limit_reached and not skip_earnings:
         try:
             earnings_map, earnings_warnings = fetch_earnings_calendar(catalyst_symbols)
             global_warnings.extend(earnings_warnings)
@@ -357,6 +362,14 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
             if isinstance(item, dict)
         ]
         latest_titles = [str(x) for x in latest_titles if x][:3]
+        source_keys = {"provider", "source", "publisher", "channel"}
+        source_values = {
+            str(item.get(k)).strip()
+            for item in news_items
+            if isinstance(item, dict)
+            for k in source_keys
+            if item.get(k) not in (None, "")
+        }
         earnings_nearby = bool(earnings_items)
         has_recent_catalyst = bool(latest_titles or earnings_nearby)
         if latest_titles and earnings_nearby:
@@ -374,6 +387,8 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
         candidate["earnings_nearby"] = earnings_nearby
         candidate["has_recent_catalyst"] = has_recent_catalyst
         candidate["catalyst_summary"] = catalyst_summary
+        candidate["catalyst_headlines"] = latest_titles
+        candidate["catalyst_source_count"] = len(source_values)
         candidate.update(score_candidate(candidate))
         candidate["warnings"] = _dedup_messages(candidate.get("warnings"))
         candidate["reasons"] = _dedup_messages(candidate.get("reasons"))
@@ -440,7 +455,6 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
         deduped_global_warnings.append(key)
 
     ranked_final = sorted(candidates, key=lambda c: c.get("total_score", 0), reverse=True)
-    shown_limit = max(1, int(limit))
 
     technical_batch_available = sum(
         1 for c in candidates if c.get("ticker", "").upper() in technical_symbol_keys and (c.get("technical_rating") not in (None, "") or c.get("rsi") not in (None, ""))

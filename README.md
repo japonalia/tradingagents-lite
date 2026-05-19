@@ -166,6 +166,20 @@ Parámetros del scanner Nasdaq 100:
 Recomendación operativa del scanner:
 - Primera pasada: usar scanner sin earnings (default) para maximizar estabilidad y legibilidad del reporte.
 - Activar `--no-skip-earnings` solo cuando necesites confirmar eventos cercanos y aceptes mayor ruido/riesgo de rate limit.
+- Modo estable recomendado (sin noticias): usar `--catalyst-top-n 0 --skip-news --skip-earnings`.
+- Para activar capa prudente de catalizadores reales, usar `--catalyst-top-n 5 --skip-earnings` (consulta noticias solo para Top final y evita barrer todo el universo).
+
+Diagnóstico de `get_news` (TVRemix):
+
+```bash
+python tools/test_tvremix_news_fields.py
+```
+
+Guarda salida sanitizada en `reports/generated/tvremix_news_fields_test.json` y muestra:
+- top-level keys,
+- tipo de payload y parseo,
+- detección de `content.text` y si parece JSON,
+- campos posibles de titulares (`title`, `headline`, `published`, `provider`, `source`, `url`, `summary`).
 
 - Diagnóstico intradía experimental: `PYTHONPATH=. python tools/test_tvremix_intraday_fields.py`
 - Los campos RVOL/VWAP/premarket del scanner se leen desde `run_screener` cuando TVRemix los devuelve para el símbolo.

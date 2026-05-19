@@ -118,6 +118,17 @@ def generate_scanner_report(candidates, output_path, source="tvremix", global_wa
     else:
         lines.append("- Fuerza relativa no disponible en esta corrida.")
 
+    lines.extend(["", "## Catalizadores reales detectados", ""])
+    catalyst_rows = [c for c in sorted_candidates if c.get("has_recent_catalyst")]
+    if catalyst_rows:
+        for c in catalyst_rows[:10]:
+            headlines = ", ".join(_dedup_texts(c.get("catalyst_headlines") or c.get("latest_news_titles") or [])[:2]) or "sin titulares"
+            lines.append(
+                f"- {_fmt(c.get('ticker'))}: {_fmt(c.get('catalyst_summary'))} (fuentes={_fmt(c.get('catalyst_source_count'))}) | {headlines}"
+            )
+    else:
+        lines.append("No se detectaron catalizadores reales parseables.")
+
     lines.extend(["", "## Niveles intradía destacados", ""])
     level_candidates = [c for c in sorted_candidates if c.get("intraday_high") not in (None, "")]
     if level_candidates:
