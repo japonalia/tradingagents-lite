@@ -92,6 +92,34 @@ def build_markdown_report(
         else:
             lines.append("- No disponible")
         lines.append("")
+        lines.extend(
+            [
+                "## Datos intradía",
+                f"- RVOL (10d): {_fmt_number(market_data.get('rvol_10d'))}",
+                f"- VWAP: {_fmt_number(market_data.get('vwap'))}",
+                f"- Gap: {_fmt_number(market_data.get('gap'))}",
+                f"- Premarket change: {_fmt_number(market_data.get('premarket_change'))}",
+                f"- Premarket gap: {_fmt_number(market_data.get('premarket_gap'))}",
+                f"- Premarket high/low: {_fmt_number(market_data.get('premarket_high'))} / {_fmt_number(market_data.get('premarket_low'))}",
+                f"- Intraday close: {_fmt_number(market_data.get('intraday_close'))}",
+                f"- Intraday volume: {_fmt_int(market_data.get('intraday_volume'))}",
+                f"- QQQ change %: {_fmt_number(market_data.get('qqq_change_percent'))}",
+                f"- RS vs QQQ: {_fmt_number(market_data.get('relative_strength_vs_qqq'))}",
+                "",
+                "## Niveles intradía",
+                f"- High: {_fmt_number(market_data.get('intraday_high'))}",
+                f"- Low: {_fmt_number(market_data.get('intraday_low'))}",
+                f"- Last close intraday: {_fmt_number(market_data.get('last_close_intraday'))}",
+                f"- VWAP barras (aprox): {_fmt_number(market_data.get('approx_intraday_vwap_from_bars'))}",
+                f"- Distancia a VWAP %: {_fmt_number(market_data.get('distance_to_vwap_pct'))}",
+                f"- Rango intradía %: {_fmt_number(market_data.get('intraday_range_pct'))}",
+                f"- Soporte intradía: {_fmt_number(market_data.get('support_intraday'))}",
+                f"- Resistencia intradía: {_fmt_number(market_data.get('resistance_intraday'))}",
+                f"- Cerca de high intradía: {market_data.get('near_intraday_high') if market_data.get('near_intraday_high') is not None else 'No disponible'}",
+                f"- Cerca de low intradía: {market_data.get('near_intraday_low') if market_data.get('near_intraday_low') is not None else 'No disponible'}",
+                "",
+            ]
+        )
 
     lines.extend(
         [

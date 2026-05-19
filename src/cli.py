@@ -11,8 +11,14 @@ from src.reports.ticker_report import build_markdown_report, write_ticker_report
 from src.scanner.nasdaq100_scanner import scan_nasdaq100
 
 
-def run_ticker_command(ticker: str, source: str = "yfinance") -> Path:
-    ticker_data = get_market_data(ticker, source=source)
+def run_ticker_command(ticker: str, source: str = "yfinance", skip_intraday: bool = False, skip_ohlcv_levels: bool = False, ohlcv_interval: str = "5m") -> Path:
+    ticker_data = get_market_data(
+        ticker,
+        source=source,
+        use_intraday=not skip_intraday,
+        use_ohlcv_levels=not skip_ohlcv_levels,
+        ohlcv_interval=ohlcv_interval,
+    )
 
     technicals = calculate_technicals(ticker_data.history)
     levels = calculate_levels(ticker_data.history)
@@ -57,6 +63,9 @@ def build_parser() -> argparse.ArgumentParser:
         default="yfinance",
         help="Fuente de datos (opciones: yfinance, tvremix)",
     )
+    ticker_parser.add_argument("--skip-intraday", action="store_true", help="Desactiva capa intradía TVRemix")
+    ticker_parser.add_argument("--skip-ohlcv-levels", action="store_true", help="Omite niveles intradía derivados de get_ohlcv")
+    ticker_parser.add_argument("--ohlcv-interval", default="5m", help="Intervalo de barras para niveles intradía con get_ohlcv")
 
     scan_parser = subparsers.add_parser("scan-nasdaq100", help="Escanea universo Nasdaq 100")
     scan_parser.add_argument("--source", default="tvremix", help="Fuente de datos (actual: tvremix)")
@@ -81,7 +90,7 @@ def main() -> None:
 
     if args.command == "ticker":
         try:
-            output_file = run_ticker_command(args.symbol, source=args.source)
+            output_file = run_ticker_command(args.symbol, source=args.source, skip_intraday=args.skip_intraday, skip_ohlcv_levels=args.skip_ohlcv_levels, ohlcv_interval=args.ohlcv_interval)
         except Exception as exc:
             print(f"Error al generar informe: {exc}")
             return
