@@ -3,6 +3,7 @@ from __future__ import annotations
 from src.data_sources.nasdaq100 import load_nasdaq100_symbols
 from src.data_sources.tvremix_client import (
     fetch_earnings_calendar,
+    fetch_intraday_ohlcv_levels,
     fetch_intraday_screener_fields,
     fetch_intraday_symbol_data_batch,
     fetch_multi_timeframe_technicals_batch,
@@ -26,7 +27,7 @@ def _first_non_empty(item: dict, keys: list[str]):
     return None
 
 
-def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int = 10, technical_top_n: int = 25, intraday_top_n: int = 10, max_symbols: int | None = None, skip_news: bool = False, skip_earnings: bool = True, use_intraday: bool = True) -> dict:
+def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int = 10, technical_top_n: int = 25, intraday_top_n: int = 10, ohlcv_top_n: int = 5, ohlcv_interval: str = "5m", max_symbols: int | None = None, skip_news: bool = False, skip_earnings: bool = True, use_intraday: bool = True, use_ohlcv_levels: bool = True) -> dict:
     if source.strip().lower() != "tvremix":
         raise ValueError("Por ahora scan-nasdaq100 solo soporta --source tvremix")
 
@@ -180,6 +181,40 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
                 candidate["premarket_high"] = candidate.get("premarket_high") or intraday_raw.get("premarket_high")
                 candidate["premarket_low"] = candidate.get("premarket_low") or intraday_raw.get("premarket_low")
                 candidate["gap"] = candidate.get("gap") or intraday_raw.get("gap")
+
+    ohlcv_levels_map: dict[str, dict] = {}
+    ohlcv_level_symbols: list[str] = []
+    ohlcv_level_diag = {
+        "ohlcv_intraday_requested": 0,
+        "ohlcv_intraday_available": 0,
+        "ohlcv_vwap_available": 0,
+    }
+    if use_ohlcv_levels and max(0, int(ohlcv_top_n)) > 0:
+        ranked_for_ohlcv = sorted(candidates, key=lambda c: c.get("total_score", 0), reverse=True)
+        ohlcv_level_symbols = [c["ticker"] for c in ranked_for_ohlcv[: max(0, int(ohlcv_top_n))]]
+        try:
+            ohlcv_levels_map, ohlcv_warnings, ohlcv_level_diag = fetch_intraday_ohlcv_levels(
+                ohlcv_level_symbols, interval=ohlcv_interval, count=100
+            )
+            global_warnings.extend(ohlcv_warnings)
+        except Exception as exc:
+            global_warnings.append(f"get_ohlcv intradía falló globalmente: {exc}")
+        ohlcv_symbol_keys = {x.upper() for x in ohlcv_level_symbols}
+        for candidate in candidates:
+            key = candidate["ticker"].upper()
+            if key not in ohlcv_symbol_keys:
+                continue
+            levels = ohlcv_levels_map.get(key) or ohlcv_levels_map.get(f"NASDAQ:{key}") or {}
+            if not levels:
+                candidate["warnings"].append("niveles intradía OHLCV no disponibles")
+                candidate.update(score_candidate(candidate))
+                continue
+            candidate.update(levels)
+            candidate.update(score_candidate(candidate))
+    elif not use_ohlcv_levels:
+        global_warnings.append("niveles intradía OHLCV omitidos por --skip-ohlcv-levels")
+
+    ranked = sorted(candidates, key=lambda c: c.get("total_score", 0), reverse=True)
 
     technical_n = max(1, int(technical_top_n))
     technical_symbols = [c["ticker"] for c in ranked[:technical_n]]
@@ -443,6 +478,10 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
         "premarket_available": premarket_available,
         "qqq_change_percent": qqq_change_percent,
         "relative_strength_available": relative_strength_available,
+        "ohlcv_intraday_requested": int(ohlcv_level_diag.get("ohlcv_intraday_requested", 0)),
+        "ohlcv_intraday_available": int(ohlcv_level_diag.get("ohlcv_intraday_available", 0)),
+        "ohlcv_vwap_available": int(ohlcv_level_diag.get("ohlcv_vwap_available", 0)),
+        "ohlcv_interval": ohlcv_interval,
         "intraday_via_run_screener": intraday_source_counts["run_screener"],
         "intraday_via_get_symbol_data": intraday_source_counts["get_symbol_data"],
         "screener_rows_returned": int(intraday_diagnostics.get("screener_rows_returned", 0)),

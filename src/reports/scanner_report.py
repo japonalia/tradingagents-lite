@@ -30,6 +30,9 @@ def generate_scanner_report(candidates, output_path, source="tvremix", global_wa
     scanner_mode = str((metrics or {}).get("scanner_mode", "degraded")).strip() or "degraded"
     qqq_change_percent = (metrics or {}).get("qqq_change_percent")
     relative_strength_available = int((metrics or {}).get("relative_strength_available", 0))
+    ohlcv_intraday_requested = int((metrics or {}).get("ohlcv_intraday_requested", 0))
+    ohlcv_intraday_available = int((metrics or {}).get("ohlcv_intraday_available", 0))
+    ohlcv_vwap_available = int((metrics or {}).get("ohlcv_vwap_available", 0))
     complete = sum(1 for c in candidates if not c.get("missing_fields"))
     missing = total - complete
     unavailable = sorted({field for c in candidates for field in (c.get("missing_fields") or [])})
@@ -68,6 +71,9 @@ def generate_scanner_report(candidates, output_path, source="tvremix", global_wa
         f"- Catalizadores consultados: **{catalysts_queried}**",
         f"- QQQ referencia: **{_fmt(qqq_change_percent)}**",
         f"- Fuerza relativa disponible: **{relative_strength_available}/{total}**",
+        f"- OHLCV intradía consultados: **{ohlcv_intraday_requested}**",
+        f"- OHLCV intradía disponibles: **{ohlcv_intraday_available}**",
+        f"- VWAP calculado desde barras disponible: **{ohlcv_vwap_available}**",
         f"- Completas: **{complete}**",
         f"- Con datos faltantes: **{missing}** (incluye símbolos fuera del subconjunto técnico consultado)",
         f"- Datos no disponibles detectados: **{', '.join(unavailable) if unavailable else 'ninguno'}**",
@@ -97,6 +103,20 @@ def generate_scanner_report(candidates, output_path, source="tvremix", global_wa
             lines.append(f"- {_fmt(c.get('ticker'))}: cambio%={_fmt(c.get('change_percent'))}, QQQ%={_fmt(c.get('qqq_change_percent'))}, RS vs QQQ={_fmt(c.get('relative_strength_vs_qqq'))}")
     else:
         lines.append("- Fuerza relativa no disponible en esta corrida.")
+
+    lines.extend(["", "## Niveles intradía destacados", ""])
+    level_candidates = [c for c in sorted_candidates if c.get("intraday_high") not in (None, "")][:5]
+    if level_candidates:
+        lines.extend([
+            "| Ticker | High | Low | Último cierre | VWAP barras | Dist. VWAP % | Rango % | Cerca high | Cerca low | Soporte | Resistencia |",
+            "|---|---:|---:|---:|---:|---:|---:|---|---|---:|---:|",
+        ])
+        for c in level_candidates:
+            lines.append(
+                f"| {_fmt(c.get('ticker'))} | {_fmt(c.get('intraday_high'))} | {_fmt(c.get('intraday_low'))} | {_fmt(c.get('last_close_intraday'))} | {_fmt(c.get('approx_intraday_vwap_from_bars'))} | {_fmt(c.get('distance_to_vwap_pct'))} | {_fmt(c.get('intraday_range_pct'))} | {_fmt(c.get('near_intraday_high'))} | {_fmt(c.get('near_intraday_low'))} | {_fmt(c.get('support_intraday'))} | {_fmt(c.get('resistance_intraday'))} |"
+            )
+    else:
+        lines.append("- Sin niveles intradía OHLCV disponibles en esta corrida.")
 
     lines.extend(["", "## Warnings globales", ""])
     if gw:

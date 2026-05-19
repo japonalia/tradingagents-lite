@@ -854,6 +854,121 @@ def fetch_ohlcv(symbol: str, interval: str = "1D", count: int = 300) -> tuple[pd
     return history, warnings
 
 
+
+def _safe_float(value: Any) -> float | None:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def fetch_intraday_ohlcv_levels(
+    symbols: list[str], interval: str = "5m", count: int = 100
+) -> tuple[dict[str, dict[str, Any]], list[str], dict[str, Any]]:
+    """Fetch a small OHLCV sample per symbol and derive intraday levels.
+
+    Intended for top candidates only; callers should keep ``symbols`` small.
+    Failures are collected as warnings so scanner flows can continue.
+    """
+    normalized = [normalize_tv_symbol(symbol) for symbol in symbols if str(symbol).strip()]
+    if not normalized:
+        return {}, ["No se recibieron símbolos para get_ohlcv intradía."], {
+            "ohlcv_intraday_requested": 0,
+            "ohlcv_intraday_available": 0,
+            "ohlcv_vwap_available": 0,
+        }
+
+    warnings: list[str] = []
+    records: dict[str, dict[str, Any]] = {}
+    available = 0
+    vwap_available = 0
+
+    for tv_symbol in normalized:
+        short = tv_symbol.split(":", 1)[-1].upper()
+        try:
+            history, ohlcv_warnings = fetch_ohlcv(tv_symbol, interval=interval, count=count)
+            warnings.extend([f"{tv_symbol}: {warning}" for warning in ohlcv_warnings])
+        except Exception as exc:
+            warnings.append(f"get_ohlcv intradía falló para {tv_symbol}: {exc}")
+            if "429" in str(exc) or "Too Many Requests" in str(exc):
+                warnings.append("rate limit alcanzado en get_ohlcv intradía; se detuvieron consultas adicionales")
+                break
+            continue
+
+        if history.empty:
+            warnings.append(f"get_ohlcv intradía sin barras parseables para {tv_symbol}.")
+            continue
+
+        required = ["High", "Low", "Close"]
+        if any(col not in history.columns for col in required):
+            warnings.append(
+                f"get_ohlcv intradía sin columnas HLC completas para {tv_symbol}. columnas={list(history.columns)}"
+            )
+            continue
+
+        bars = history.dropna(subset=required).copy()
+        if bars.empty:
+            warnings.append(f"get_ohlcv intradía sin barras HLC válidas para {tv_symbol}.")
+            continue
+
+        for col in ["High", "Low", "Close", "Volume"]:
+            if col in bars.columns:
+                bars[col] = pd.to_numeric(bars[col], errors="coerce")
+        bars = bars.dropna(subset=required)
+        if bars.empty:
+            warnings.append(f"get_ohlcv intradía sin números HLC válidos para {tv_symbol}.")
+            continue
+
+        intraday_high = _safe_float(bars["High"].max())
+        intraday_low = _safe_float(bars["Low"].min())
+        last_close = _safe_float(bars["Close"].iloc[-1])
+        if intraday_high is None or intraday_low is None or last_close in (None, 0):
+            warnings.append(f"get_ohlcv intradía sin high/low/close útiles para {tv_symbol}.")
+            continue
+
+        volume = bars["Volume"] if "Volume" in bars.columns else pd.Series([0] * len(bars))
+        volume = pd.to_numeric(volume, errors="coerce").fillna(0)
+        intraday_volume_sum = _safe_float(volume.sum()) or 0.0
+
+        vwap = None
+        if intraday_volume_sum > 0:
+            typical_price = (bars["High"] + bars["Low"] + bars["Close"]) / 3
+            vwap = _safe_float((typical_price * volume).sum() / intraday_volume_sum)
+
+        recent_lows = bars["Low"].tail(min(20, len(bars))).dropna()
+        support = _safe_float(recent_lows.min()) if not recent_lows.empty else intraday_low
+        previous_high = _safe_float(bars["High"].iloc[:-1].max()) if len(bars) > 1 else None
+        broke_intraday_high = (last_close > previous_high) if previous_high is not None else None
+
+        levels = {
+            "intraday_high": round(intraday_high, 4),
+            "intraday_low": round(intraday_low, 4),
+            "intraday_range_pct": round(((intraday_high - intraday_low) / last_close) * 100, 4),
+            "last_close_intraday": round(last_close, 4),
+            "intraday_volume_sum": round(intraday_volume_sum, 4),
+            "approx_intraday_vwap_from_bars": round(vwap, 4) if vwap is not None else None,
+            "distance_to_vwap_pct": round(((last_close - vwap) / vwap) * 100, 4) if vwap not in (None, 0) else None,
+            "near_intraday_high": ((intraday_high - last_close) / intraday_high) <= 0.005 if intraday_high else False,
+            "near_intraday_low": ((last_close - intraday_low) / intraday_low) <= 0.005 if intraday_low else False,
+            "broke_intraday_high": broke_intraday_high,
+            "support_intraday": round(support, 4) if support is not None else round(intraday_low, 4),
+            "resistance_intraday": round(intraday_high, 4),
+            "ohlcv_interval": interval,
+            "ohlcv_bars_count": int(len(bars)),
+        }
+        records[tv_symbol.upper()] = levels
+        records[short] = levels
+        available += 1
+        if vwap is not None:
+            vwap_available += 1
+
+    diagnostics = {
+        "ohlcv_intraday_requested": len(normalized),
+        "ohlcv_intraday_available": available,
+        "ohlcv_vwap_available": vwap_available,
+    }
+    return records, warnings, diagnostics
+
 def fetch_tvremix_data(symbol: str) -> MarketDataResult:
     user_symbol = symbol.upper().strip()
     tv_symbol = normalize_tv_symbol(symbol)

@@ -143,8 +143,9 @@ Esta ruta permite validar el MVP end-to-end sin depender de APIs externas ni con
 
 ## Estado del scanner Nasdaq 100
 
-Scanner Nasdaq 100 operativo: usa `config/nasdaq100_symbols.yaml` (universo amplio), consulta `get_quotes_batch` para todo el universo en **chunks de hasta 50 símbolos** (límite de TVRemix), hace scoring preliminar y limita consultas costosas por fases: técnicos para `--technical-top-n` y catalizadores para `--catalyst-top-n`. El reporte incluye warnings globales separados de warnings por ticker.
+Scanner Nasdaq 100 operativo: usa `config/nasdaq100_symbols.yaml` (universo amplio), consulta `get_quotes_batch` para todo el universo en **chunks de hasta 50 símbolos** (límite de TVRemix), hace scoring preliminar y limita consultas costosas por fases: técnicos para `--technical-top-n`, niveles OHLCV intradía para `--ohlcv-top-n` y catalizadores para `--catalyst-top-n`. El reporte incluye warnings globales separados de warnings por ticker.
 - Fuerza relativa vs QQQ incluida en scanner: **RS vs QQQ = variación % de la acción − variación % de QQQ** (si QQQ no está disponible, se deja como N/A y se reporta warning global).
+- Niveles intradía opcionales desde `get_ohlcv`: se calculan solo para el Top preliminar, no para todo el universo, e incluyen high/low intradía, rango %, cierre intradía, VWAP aproximado desde barras, distancia a VWAP, banderas cerca de high/low y soporte/resistencia aproximados.
 
 
 Parámetros del scanner Nasdaq 100:
@@ -152,9 +153,12 @@ Parámetros del scanner Nasdaq 100:
 - `--technical-top-n`: limita cuántas candidatas preliminares reciben consultas técnicas (`analyze_multi_timeframe_batch` y fallback individual).
 - `--intraday-top-n`: limita cuántas candidatas preliminares reciben fallback intradía con `get_symbol_data` cuando `run_screener` no cubre bien el universo Nasdaq 100.
 - `--catalyst-top-n`: limita cuántas candidatas preliminares reciben consultas de catalizadores.
+- `--ohlcv-top-n`: limita cuántas candidatas preliminares reciben consulta `get_ohlcv` para calcular niveles intradía. Por defecto es `5`, para evitar solicitar barras de los 98 símbolos del universo.
+- `--ohlcv-interval`: intervalo de barras usado en `get_ohlcv` para los niveles intradía. Por defecto es `5m`; puedes usar otro intervalo soportado por TVRemix.
 - `--skip-news`: omite consulta de `get_news` para reducir ruido/costo cuando solo quieres técnicos.
 - `--skip-earnings` / `--no-skip-earnings`: controla consulta de `get_earnings_calendar` (por defecto `--skip-earnings` activado para evitar ruido y rate limits).
 - `--skip-intraday`: desactiva enriquecimiento intradía desde `run_screener` (RVOL/VWAP/premarket/gap).
+- `--skip-ohlcv-levels`: omite la capa de niveles intradía desde `get_ohlcv`; el scanner sigue funcionando con quotes, técnicos, RVOL/VWAP de screener y fuerza relativa.
 - `--max-symbols`: límite opcional del universo evaluado (solo debug/pruebas). Por defecto `None` para evaluar todo `config/nasdaq100_symbols.yaml`.
 
 
@@ -165,3 +169,11 @@ Recomendación operativa del scanner:
 - Diagnóstico intradía experimental: `PYTHONPATH=. python tools/test_tvremix_intraday_fields.py`
 - Los campos RVOL/VWAP/premarket del scanner se leen desde `run_screener` cuando TVRemix los devuelve para el símbolo.
 - Si `run_screener` devuelve cobertura baja del universo (ej. <5 símbolos parseables), el scanner usa fallback práctico: consulta `get_symbol_data` **solo** para el Top preliminar (`--intraday-top-n`, default 10), evitando pedir intradía para todo el universo y reduciendo riesgo de rate limit.
+
+
+Ejemplos de scanner con y sin niveles OHLCV intradía:
+
+```bash
+python -m src.cli scan-nasdaq100 --source tvremix --limit 10 --technical-top-n 10 --intraday-top-n 10 --ohlcv-top-n 5 --catalyst-top-n 0 --skip-news --skip-earnings
+python -m src.cli scan-nasdaq100 --source tvremix --limit 10 --technical-top-n 10 --intraday-top-n 10 --catalyst-top-n 0 --skip-news --skip-earnings --skip-ohlcv-levels
+```
