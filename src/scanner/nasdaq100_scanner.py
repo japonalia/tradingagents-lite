@@ -497,6 +497,17 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
     else:
         scanner_mode = "technical_only"
 
+    ohlcv_visible_in_top = sum(
+        1
+        for c in ranked_final[:shown_limit]
+        if c.get("intraday_high") not in (None, "")
+    )
+    ohlcv_intraday_requested = int(ohlcv_level_diag.get("ohlcv_intraday_requested", 0))
+    if ohlcv_intraday_requested > 0 and ohlcv_visible_in_top < ohlcv_intraday_requested:
+        deduped_global_warnings.append(
+            f"OHLCV calculado para {ohlcv_intraday_requested} candidatos; {ohlcv_visible_in_top} visible en Top mostrado tras reordenación."
+        )
+
     return {
         "symbols_in_universe": len(symbols),
         "candidates_evaluated": len(candidates),
@@ -529,12 +540,3 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
         "candidates": ranked_final[:shown_limit],
         "global_warnings": deduped_global_warnings,
     }
-    ohlcv_visible_in_top = sum(
-        1
-        for c in ranked_final[:shown_limit]
-        if c.get("intraday_high") not in (None, "")
-    )
-    if ohlcv_intraday_requested > 0 and ohlcv_visible_in_top < ohlcv_intraday_requested:
-        deduped_global_warnings.append(
-            f"OHLCV calculado para {ohlcv_intraday_requested} candidatos; {ohlcv_visible_in_top} visible en Top mostrado tras reordenación."
-        )
