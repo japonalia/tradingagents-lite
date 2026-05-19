@@ -993,7 +993,10 @@ def fetch_tvremix_data(
 
     intraday_data: dict[str, Any] = {}
     intraday_levels: dict[str, Any] = {}
-    if use_intraday:
+    intraday_enabled = bool(use_intraday)
+    ohlcv_levels_enabled = bool(use_intraday and use_ohlcv_levels)
+
+    if intraday_enabled:
         symbol_intraday_map, symbol_intraday_warnings, _ = fetch_intraday_symbol_data_batch([tv_symbol])
         warnings.extend(symbol_intraday_warnings)
         intraday_data = symbol_intraday_map.get(tv_symbol.upper()) or symbol_intraday_map.get(user_symbol, {})
@@ -1001,7 +1004,7 @@ def fetch_tvremix_data(
         warnings.append("capa intradía omitida por --skip-intraday")
 
     qqq_change_percent = None
-    if use_intraday:
+    if intraday_enabled:
         try:
             qqq_map, qqq_warnings = fetch_quotes_batch(["QQQ"])
             warnings.extend(qqq_warnings)
@@ -1015,12 +1018,12 @@ def fetch_tvremix_data(
         if qqq_change_percent is None:
             warnings.append("QQQ no disponible; RS vs QQQ = N/A")
 
-    if use_ohlcv_levels:
+    if ohlcv_levels_enabled:
         ohlcv_levels_map, ohlcv_level_warnings, _ = fetch_intraday_ohlcv_levels([tv_symbol], interval=ohlcv_interval)
         warnings.extend(ohlcv_level_warnings)
         intraday_levels = ohlcv_levels_map.get(tv_symbol.upper()) or ohlcv_levels_map.get(user_symbol, {})
-    else:
-        warnings.append("niveles intradía OHLCV omitidos por --skip-ohlcv-levels")
+    elif intraday_enabled:
+        warnings.append("niveles OHLCV omitidos por --skip-ohlcv-levels")
 
     quote_data = quote.get("data", {}) if isinstance(quote.get("data"), dict) else quote
     technicals_data = (
@@ -1109,6 +1112,8 @@ def fetch_tvremix_data(
         "resistance_intraday": intraday_levels.get("resistance_intraday"),
         "near_intraday_high": intraday_levels.get("near_intraday_high"),
         "near_intraday_low": intraday_levels.get("near_intraday_low"),
+        "intraday_enabled": intraday_enabled,
+        "ohlcv_levels_enabled": ohlcv_levels_enabled,
     }
 
     symbol_change = market_data.get("change_percent")
