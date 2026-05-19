@@ -146,6 +146,7 @@ Esta ruta permite validar el MVP end-to-end sin depender de APIs externas ni con
 Scanner Nasdaq 100 operativo: usa `config/nasdaq100_symbols.yaml` (universo amplio), consulta `get_quotes_batch` para todo el universo en **chunks de hasta 50 símbolos** (límite de TVRemix), hace scoring preliminar y limita consultas costosas por fases: técnicos para `--technical-top-n`, niveles OHLCV intradía para `--ohlcv-top-n` y catalizadores para `--catalyst-top-n`. El reporte incluye warnings globales separados de warnings por ticker.
 - Fuerza relativa vs QQQ incluida en scanner: **RS vs QQQ = variación % de la acción − variación % de QQQ** (si QQQ no está disponible, se deja como N/A y se reporta warning global).
 - Niveles intradía opcionales desde `get_ohlcv`: se calculan solo para el Top preliminar, no para todo el universo, e incluyen high/low intradía, rango %, cierre intradía, VWAP aproximado desde barras, distancia a VWAP, banderas cerca de high/low y soporte/resistencia aproximados.
+- Recalibración intradía activa en scoring: ahora se penaliza explícitamente RVOL bajo, movimientos fuertes sin confirmación de volumen y extensiones excesivas sobre VWAP; además, se aplican topes de score cuando no hay catalizador confirmado y el RVOL es bajo.
 
 
 Parámetros del scanner Nasdaq 100:

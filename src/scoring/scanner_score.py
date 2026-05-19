@@ -8,18 +8,30 @@ def _to_float(value):
         return None
 
 
+def _append_unique(messages: list[str], message: str) -> None:
+    normalized = message.strip().lower()
+    if not normalized:
+        return
+    if normalized not in {m.strip().lower() for m in messages}:
+        messages.append(message)
+
+
 def score_candidate(candidate: dict) -> dict:
     if not isinstance(candidate, dict):
         candidate = {}
 
     reasons: list[str] = []
     missing_fields = list(candidate.get("missing_fields") or [])
-    warnings = list(candidate.get("warnings") or [])
+    warnings: list[str] = []
+    for warning in (candidate.get("warnings") or []):
+        _append_unique(warnings, str(warning).strip())
     penalties: list[str] = []
+
+    cp = _to_float(candidate.get("change_percent"))
+    rvol = _to_float(candidate.get("rvol_10d"))
 
     # Momentum / change_percent: 0-15
     momentum = 0.0
-    cp = _to_float(candidate.get("change_percent"))
     if cp is None:
         reasons.append("Sin change_percent.")
     else:
@@ -28,7 +40,10 @@ def score_candidate(candidate: dict) -> dict:
     rs_vs_qqq = _to_float(candidate.get("relative_strength_vs_qqq"))
     if rs_vs_qqq is not None:
         if rs_vs_qqq > 2.0:
-            momentum += 4.0
+            rs_bonus = 4.0
+            if rvol is not None and rvol < 0.75:
+                rs_bonus = 2.0
+            momentum += rs_bonus
         elif rs_vs_qqq > 1.0:
             momentum += 2.0
         elif rs_vs_qqq < -1.0:
@@ -43,7 +58,6 @@ def score_candidate(candidate: dict) -> dict:
 
     # Intradía (RVOL/VWAP/Gap): 0-10
     intraday = 0.0
-    rvol = _to_float(candidate.get("rvol_10d"))
     vwap = _to_float(candidate.get("vwap"))
     intraday_price = _to_float(candidate.get("intraday_close"))
     if intraday_price is None:
@@ -52,18 +66,34 @@ def score_candidate(candidate: dict) -> dict:
     bars_vwap = _to_float(candidate.get("approx_intraday_vwap_from_bars"))
     gap = _to_float(candidate.get("gap"))
     premarket_gap = _to_float(candidate.get("premarket_gap"))
-    intraday_change = _to_float(candidate.get("intraday_change"))
+    distance_to_vwap_pct = _to_float(candidate.get("distance_to_vwap_pct"))
 
-    if rvol is not None and rvol >= 1.5:
-        intraday += 2.5
-    if rvol is not None and rvol >= 2.0:
-        intraday += 2.5
+    if rvol is not None:
+        if rvol >= 2.0:
+            intraday += 8.0
+        elif rvol >= 1.5:
+            intraday += 5.0
+        elif rvol >= 1.0:
+            intraday += 2.0
+        elif rvol < 0.25:
+            intraday -= 10.0
+            penalties.append("RVOL extremadamente bajo.")
+        elif rvol < 0.5:
+            intraday -= 7.0
+            penalties.append("RVOL muy bajo.")
+        elif rvol < 0.75:
+            intraday -= 4.0
+            penalties.append("RVOL bajo.")
+
     if intraday_price is not None and vwap is not None and intraday_price > vwap:
         intraday += 2.0
     if (gap is not None and abs(gap) >= 1.0) or (premarket_gap is not None and abs(premarket_gap) >= 1.0):
         intraday += 1.5
-    if candidate.get("near_intraday_high") is True and rvol is not None and rvol >= 1.0:
-        intraday += 1.5
+    if candidate.get("near_intraday_high") is True:
+        if rvol is not None and rvol >= 1.0:
+            intraday += 3.0
+        else:
+            _append_unique(warnings, "Cerca de máximo intradía pero sin RVOL suficiente.")
     if candidate.get("near_intraday_low") is True:
         intraday -= 1.5
         penalties.append("Cerca del mínimo intradía.")
@@ -73,9 +103,23 @@ def score_candidate(candidate: dict) -> dict:
         elif last_close_intraday < bars_vwap:
             intraday -= 1.0
             penalties.append("Último cierre intradía bajo VWAP de barras.")
-    if (intraday_change is not None and abs(intraday_change) >= 3.0) and (rvol is None or rvol < 1.2):
-        intraday -= 2.0
-        penalties.append("Movimiento fuerte sin RVOL suficiente.")
+
+    if cp is not None and rvol is not None:
+        if abs(cp) >= 3.0 and rvol < 0.75:
+            intraday -= 6.0
+            _append_unique(warnings, "Movimiento fuerte sin confirmación de volumen.")
+        elif abs(cp) >= 2.0 and rvol < 1.0:
+            intraday -= 4.0
+            _append_unique(warnings, "Movimiento fuerte con RVOL bajo.")
+
+    if distance_to_vwap_pct is not None and distance_to_vwap_pct > 5:
+        _append_unique(warnings, "Extendida sobre VWAP intradía.")
+        if rvol is not None and rvol < 1.5:
+            intraday -= 2.0
+    if distance_to_vwap_pct is not None and distance_to_vwap_pct > 8:
+        intraday -= 4.0
+        _append_unique(warnings, "Riesgo de persecución: muy extendida sobre VWAP.")
+
     intraday = max(0.0, min(10.0, intraday))
 
     # Técnico / rating / RSI: 0-20
@@ -111,7 +155,8 @@ def score_candidate(candidate: dict) -> dict:
         catalyst += min(12.0, 4.0 * float(candidate.get("news_count", 0)))
     if candidate.get("earnings_nearby"):
         catalyst += 8.0
-    if not candidate.get("has_recent_catalyst"):
+    has_recent_catalyst = bool(candidate.get("has_recent_catalyst"))
+    if not has_recent_catalyst:
         catalyst = max(0.0, catalyst - 6.0)
         penalties.append("Sin catalizador confirmado.")
     catalyst = min(20.0, catalyst)
@@ -126,19 +171,28 @@ def score_candidate(candidate: dict) -> dict:
         penalties.append("Rating técnico Strong Sell.")
     if rsi is not None and rsi > 75:
         risk -= 2
-        warnings.append("RSI > 75: posible sobreextensión.")
-    if cp is not None and cp >= 4 and not candidate.get("has_recent_catalyst"):
+        _append_unique(warnings, "RSI > 75: posible sobreextensión.")
+    if cp is not None and cp >= 4 and not has_recent_catalyst:
         risk -= 2
-        warnings.append("FOMO: subida fuerte sin noticia confirmada.")
-    if cp is not None and cp <= -4 and not candidate.get("has_recent_catalyst"):
+        _append_unique(warnings, "FOMO: subida fuerte sin noticia confirmada.")
+    if cp is not None and cp <= -4 and not has_recent_catalyst:
         risk -= 2
-        warnings.append("Caída fuerte sin noticia confirmada.")
+        _append_unique(warnings, "Caída fuerte sin noticia confirmada.")
     risk = max(0.0, risk)
 
     total = momentum + volume_score + intraday + technical + catalyst + data_quality + risk
+    total = min(100.0, total)
+
+    if rvol is not None and not has_recent_catalyst:
+        if rvol < 0.25:
+            total = min(total, 62.0)
+        elif rvol < 0.5:
+            total = min(total, 68.0)
+        elif rvol < 0.75:
+            total = min(total, 72.0)
 
     return {
-        "total_score": round(min(100.0, total), 2),
+        "total_score": round(total, 2),
         "score_breakdown": {
             "momentum": round(momentum, 2),
             "volume_liquidity": round(volume_score, 2),
