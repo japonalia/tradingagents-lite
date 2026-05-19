@@ -16,6 +16,10 @@ def _append_unique(messages: list[str], message: str) -> None:
         messages.append(message)
 
 
+def is_missing_intraday_value(value) -> bool:
+    return value is None or value == "" or value == "N/A"
+
+
 def score_candidate(candidate: dict) -> dict:
     if not isinstance(candidate, dict):
         candidate = {}
@@ -163,18 +167,26 @@ def score_candidate(candidate: dict) -> dict:
     catalyst = min(20.0, catalyst)
 
     if intraday_expected:
-        has_rvol = rvol is not None
-        has_vwap = vwap is not None
-        if not has_rvol and not has_vwap:
+        rvol_10d = candidate.get("rvol_10d")
+        vwap_raw = candidate.get("vwap")
+        intraday_close_raw = candidate.get("intraday_close")
+        intraday_volume_raw = candidate.get("intraday_volume")
+        missing_rvol = is_missing_intraday_value(rvol_10d)
+        missing_vwap = is_missing_intraday_value(vwap_raw)
+        has_intraday_context = not (
+            is_missing_intraday_value(intraday_close_raw) and is_missing_intraday_value(intraday_volume_raw)
+        )
+
+        if missing_rvol and missing_vwap and has_intraday_context:
             _append_unique(warnings, "Sin RVOL/VWAP intradía.")
             penalties.append("Penalización por falta de RVOL/VWAP intradía.")
             total_intraday_penalty = -6.0
             intraday = max(0.0, intraday + total_intraday_penalty)
-        elif not has_rvol and has_vwap:
+        elif missing_rvol and not missing_vwap:
             _append_unique(warnings, "RVOL no disponible.")
             penalties.append("Penalización por RVOL faltante.")
             intraday = max(0.0, intraday - 3.0)
-        elif has_rvol and not has_vwap:
+        elif not missing_rvol and missing_vwap:
             _append_unique(warnings, "VWAP no disponible.")
             penalties.append("Penalización por VWAP faltante.")
             intraday = max(0.0, intraday - 2.0)
