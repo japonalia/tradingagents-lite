@@ -48,6 +48,8 @@ def score_candidate(candidate: dict) -> dict:
     intraday_price = _to_float(candidate.get("intraday_close"))
     if intraday_price is None:
         intraday_price = _to_float(candidate.get("price"))
+    last_close_intraday = _to_float(candidate.get("last_close_intraday"))
+    bars_vwap = _to_float(candidate.get("approx_intraday_vwap_from_bars"))
     gap = _to_float(candidate.get("gap"))
     premarket_gap = _to_float(candidate.get("premarket_gap"))
     intraday_change = _to_float(candidate.get("intraday_change"))
@@ -60,6 +62,17 @@ def score_candidate(candidate: dict) -> dict:
         intraday += 2.0
     if (gap is not None and abs(gap) >= 1.0) or (premarket_gap is not None and abs(premarket_gap) >= 1.0):
         intraday += 1.5
+    if candidate.get("near_intraday_high") is True and rvol is not None and rvol >= 1.0:
+        intraday += 1.5
+    if candidate.get("near_intraday_low") is True:
+        intraday -= 1.5
+        penalties.append("Cerca del mínimo intradía.")
+    if last_close_intraday is not None and bars_vwap is not None:
+        if last_close_intraday > bars_vwap:
+            intraday += 1.0
+        elif last_close_intraday < bars_vwap:
+            intraday -= 1.0
+            penalties.append("Último cierre intradía bajo VWAP de barras.")
     if (intraday_change is not None and abs(intraday_change) >= 3.0) and (rvol is None or rvol < 1.2):
         intraday -= 2.0
         penalties.append("Movimiento fuerte sin RVOL suficiente.")
