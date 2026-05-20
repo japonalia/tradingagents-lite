@@ -8,11 +8,12 @@
 6. ✅ **Fuerza relativa vs QQQ en scanner Nasdaq 100**: `RS vs QQQ = cambio de la acción - cambio de QQQ` con warning global si QQQ no está disponible.
 7. ✅ **Paso actual**: recalibración intradía del scoring Nasdaq 100 (penalización por RVOL bajo, extensión excesiva y cap de score sin catalizador confirmado).
 8. 🚧 **Paso actual en curso**: capa de catalizadores reales parseables (diagnóstico `get_news`, consulta prudente solo en Top final, sin romper modo estable).
-9. 🔜 **Próximo paso**: preparar salida final del scanner para flujo GPT TradingAgents.
+9. ✅ **Paso completado**: salida del scanner optimizada para GPT TradingAgents / Plantilla 7 (resumen ejecutivo, estado de candidata y limitaciones).
+10. 🔜 **Próximo paso**: auditoría del universo Nasdaq 100 y refuerzo de catalizadores externos.
 
 
 ## Estado intradía TVRemix (experimental)
 - Paso actual: recalibración intradía del ranking para priorizar RVOL suficiente + fuerza real y penalizar movimientos sin volumen, extensiones sobre VWAP y perseguir precio sin confirmación.
 - Mantener: fuerza relativa vs QQQ integrada al ranking y reporte, manteniendo `technical_intraday` cuando hay capa intradía.
 - Paso en curso: consolidar catalizadores reales parseables sin ensuciar reporte ni disparar rate limits.
-- Próximo paso: preparar salida final para GPT TradingAgents y profundizar análisis individual con intradía (setup, invalidación, contexto de volumen).
+- Próximo paso: auditoría del universo Nasdaq 100 (símbolos/cobertura real) y/o integración de catalizadores externos más confiables.
