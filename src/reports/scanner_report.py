@@ -158,11 +158,6 @@ def generate_scanner_report(candidates, output_path, source="tvremix", global_wa
         f"- Completas: **{complete}**",
         f"- Con datos faltantes: **{missing}** (incluye símbolos fuera del subconjunto técnico consultado)",
         f"- Datos no disponibles detectados: **{', '.join(unavailable) if unavailable else 'ninguno'}**",
-        "",
-        "## Top candidatas",
-        "",
-        "| Ranking | Ticker | Precio | Variación % | RS vs QQQ | Volumen | RVOL | VWAP | Gap/PM | Rating técnico | RSI | Catalizador | Score | Riesgo / warnings |",
-        "|---:|---|---:|---:|---:|---:|---:|---:|---|---|---:|---|---:|---|",
     ])
 
     sorted_candidates = sorted(candidates, key=lambda x: x.get("total_score", 0), reverse=True)
@@ -227,6 +222,13 @@ def generate_scanner_report(candidates, output_path, source="tvremix", global_wa
         f"- Catalizadores reales en Top 10: **{'sí' if has_real_catalysts else 'no'}**.",
         f"- Lectura operativa: el scanner sugiere **{day_action}**.",
     ])
+    lines.extend([
+        "",
+        "## Top candidatas",
+        "",
+        "| Ranking | Ticker | Precio | Variación % | RS vs QQQ | Volumen | RVOL | VWAP | Gap/PM | Rating técnico | RSI | Catalizador | Score | Riesgo / warnings |",
+        "|---:|---|---:|---:|---:|---:|---:|---:|---|---|---:|---|---:|---|",
+    ])
     for idx, c in enumerate(sorted_candidates, start=1):
         local_warnings = []
         for warning in _dedup_texts((c.get("warnings") or []) + (c.get("reasons") or [])):
@@ -286,8 +288,6 @@ def generate_scanner_report(candidates, output_path, source="tvremix", global_wa
     else:
         lines.append("- Sin datos intradía destacados.")
 
-    lines.extend(["", "## No es señal ejecutable", "Este reporte es informativo y no constituye una orden, recomendación ni señal ejecutable de trading.", "", "No usar como señal ejecutable intradía.", ""])
-
     lines.extend(["", "## Datos faltantes / limitaciones", ""])
     if any("get_news" in w.lower() for w in gw) or catalysts_queried == 0:
         lines.append("- TVRemix get_news no devolvió titulares parseables o fue omitido en esta corrida.")
@@ -299,6 +299,8 @@ def generate_scanner_report(candidates, output_path, source="tvremix", global_wa
         lines.append("- Catalizadores no confirmados: no hay noticias parseables suficientes en el Top mostrado.")
     if lines[-1] == "":
         lines.append("- Sin limitaciones críticas adicionales en esta corrida.")
+
+    lines.extend(["", "## No es señal ejecutable", "Este reporte es informativo y no constituye una orden, recomendación ni señal ejecutable de trading.", "", "No usar como señal ejecutable intradía.", ""])
 
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text("\n".join(lines), encoding="utf-8")
