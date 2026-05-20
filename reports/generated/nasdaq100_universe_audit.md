@@ -1,0 +1,122 @@
+# Auditoría de universo Nasdaq 100 (scanner)
+
+## Resumen
+- Total de símbolos cargados: **98**
+- Nota: el universo actual contiene **98 símbolos** (no 100).
+- Referencia externa: **no aplicada** en esta auditoría (pendiente comparación manual futura).
+
+## Chequeos de calidad
+- Duplicados detectados: **0**
+  - Ninguno
+- Símbolos sin prefijo `NASDAQ:`: **0**
+  - Ninguno
+- Símbolos con formato raro: **0**
+  - Ninguno
+- Símbolos no normalizados a mayúsculas: **0**
+  - Ninguno
+- Símbolos conocidos potencialmente problemáticos: **2**
+  - NASDAQ:GOOG: Dual-class con GOOGL (verificar si ambos deben coexistir según criterio interno).
+  - NASDAQ:GOOGL: Dual-class con GOOG (verificar si ambos deben coexistir según criterio interno).
+
+## Lista completa ordenada
+- NASDAQ:ADBE
+- NASDAQ:ADI
+- NASDAQ:ADP
+- NASDAQ:ADSK
+- NASDAQ:AEP
+- NASDAQ:AMAT
+- NASDAQ:AMD
+- NASDAQ:AMGN
+- NASDAQ:AMZN
+- NASDAQ:ANSS
+- NASDAQ:APP
+- NASDAQ:ARM
+- NASDAQ:ASML
+- NASDAQ:AVGO
+- NASDAQ:AXON
+- NASDAQ:AZN
+- NASDAQ:BIIB
+- NASDAQ:BKNG
+- NASDAQ:BKR
+- NASDAQ:CCEP
+- NASDAQ:CDNS
+- NASDAQ:CDW
+- NASDAQ:CEG
+- NASDAQ:CHTR
+- NASDAQ:CMCSA
+- NASDAQ:COST
+- NASDAQ:CPRT
+- NASDAQ:CRWD
+- NASDAQ:CSCO
+- NASDAQ:CSX
+- NASDAQ:CTAS
+- NASDAQ:CTSH
+- NASDAQ:DDOG
+- NASDAQ:DLTR
+- NASDAQ:DXCM
+- NASDAQ:EA
+- NASDAQ:EXC
+- NASDAQ:FANG
+- NASDAQ:FAST
+- NASDAQ:FTNT
+- NASDAQ:GEHC
+- NASDAQ:GFS
+- NASDAQ:GILD
+- NASDAQ:GOOG
+- NASDAQ:GOOGL
+- NASDAQ:HON
+- NASDAQ:IDXX
+- NASDAQ:ILMN
+- NASDAQ:INTC
+- NASDAQ:INTU
+- NASDAQ:ISRG
+- NASDAQ:KDP
+- NASDAQ:KHC
+- NASDAQ:KLAC
+- NASDAQ:LIN
+- NASDAQ:LITE
+- NASDAQ:LRCX
+- NASDAQ:LULU
+- NASDAQ:MAR
+- NASDAQ:MCHP
+- NASDAQ:MDLZ
+- NASDAQ:MELI
+- NASDAQ:META
+- NASDAQ:MNST
+- NASDAQ:MRNA
+- NASDAQ:MRVL
+- NASDAQ:MSFT
+- NASDAQ:MU
+- NASDAQ:NFLX
+- NASDAQ:NVDA
+- NASDAQ:NXPI
+- NASDAQ:ODFL
+- NASDAQ:ON
+- NASDAQ:ORLY
+- NASDAQ:PANW
+- NASDAQ:PAYX
+- NASDAQ:PCAR
+- NASDAQ:PDD
+- NASDAQ:PEP
+- NASDAQ:PLTR
+- NASDAQ:PYPL
+- NASDAQ:QCOM
+- NASDAQ:REGN
+- NASDAQ:ROP
+- NASDAQ:ROST
+- NASDAQ:SBUX
+- NASDAQ:SNPS
+- NASDAQ:TEAM
+- NASDAQ:TMUS
+- NASDAQ:TSLA
+- NASDAQ:TTD
+- NASDAQ:TXN
+- NASDAQ:VRSK
+- NASDAQ:VRTX
+- NASDAQ:WBD
+- NASDAQ:WDAY
+- NASDAQ:XEL
+- NASDAQ:ZS
+
+## Nota para siguiente fase
+Esta auditoría no cambia el universo ni valida contra una lista externa. Se deja este archivo como base para una comparación manual futura.
