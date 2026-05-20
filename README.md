@@ -194,3 +194,9 @@ Ejemplos de scanner con y sin niveles OHLCV intradía:
 python -m src.cli scan-nasdaq100 --source tvremix --limit 10 --technical-top-n 10 --intraday-top-n 10 --ohlcv-top-n 5 --catalyst-top-n 0 --skip-news --skip-earnings
 python -m src.cli scan-nasdaq100 --source tvremix --limit 10 --technical-top-n 10 --intraday-top-n 10 --catalyst-top-n 0 --skip-news --skip-earnings --skip-ohlcv-levels
 ```
+
+Auditoría de universo Nasdaq 100:
+
+```bash
+python tools/audit_nasdaq100_universe.py
+```
