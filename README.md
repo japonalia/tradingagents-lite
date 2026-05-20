@@ -163,13 +163,15 @@ Parámetros del scanner Nasdaq 100:
 - `--skip-intraday`: desactiva enriquecimiento intradía desde `run_screener` (RVOL/VWAP/premarket/gap).
 - `--skip-ohlcv-levels`: omite la capa de niveles intradía desde `get_ohlcv`; el scanner sigue funcionando con quotes, técnicos, RVOL/VWAP de screener y fuerza relativa.
 - `--max-symbols`: límite opcional del universo evaluado (solo debug/pruebas). Por defecto `None` para evaluar todo `config/nasdaq100_symbols.yaml`.
+- `--external-catalysts`: capa opcional/experimental de catalizadores externos para el Top final. Actualmente usa un stub seguro y, si no hay proveedor configurado, no rompe el scanner.
 
 
 Recomendación operativa del scanner:
 - Primera pasada: usar scanner sin earnings (default) para maximizar estabilidad y legibilidad del reporte.
 - Activar `--no-skip-earnings` solo cuando necesites confirmar eventos cercanos y aceptes mayor ruido/riesgo de rate limit.
 - Modo estable recomendado (sin noticias): usar `--catalyst-top-n 0 --skip-news --skip-earnings`.
-- Para activar capa prudente de catalizadores reales, usar `--catalyst-top-n 5 --skip-earnings` (consulta noticias solo para Top final y evita barrer todo el universo).
+- Para activar catalizadores TVRemix en modo prudente, usar `--catalyst-top-n 5 --skip-earnings` (consulta noticias solo para Top final y evita barrer todo el universo).
+- Para preparar capa externa (experimental, sin API real): añadir `--external-catalysts`; si no hay proveedor configurado, el reporte indicará "Fuente externa de catalizadores no configurada."
 
 Diagnóstico de `get_news` (TVRemix):
 
@@ -193,6 +195,7 @@ Ejemplos de scanner con y sin niveles OHLCV intradía:
 ```bash
 python -m src.cli scan-nasdaq100 --source tvremix --limit 10 --technical-top-n 10 --intraday-top-n 10 --ohlcv-top-n 5 --catalyst-top-n 0 --skip-news --skip-earnings
 python -m src.cli scan-nasdaq100 --source tvremix --limit 10 --technical-top-n 10 --intraday-top-n 10 --catalyst-top-n 0 --skip-news --skip-earnings --skip-ohlcv-levels
+python -m src.cli scan-nasdaq100 --source tvremix --limit 10 --technical-top-n 10 --intraday-top-n 10 --ohlcv-top-n 5 --catalyst-top-n 5 --skip-earnings --external-catalysts
 ```
 
 Auditoría de universo Nasdaq 100:

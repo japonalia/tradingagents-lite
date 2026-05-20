@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from src.data_sources.catalysts import fetch_external_catalysts
 from src.data_sources.nasdaq100 import load_nasdaq100_symbols
 from src.data_sources.tvremix_client import (
     fetch_earnings_calendar,
@@ -39,7 +40,7 @@ def _dedup_messages(values: list[str] | None) -> list[str]:
     return out
 
 
-def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int = 10, technical_top_n: int = 25, intraday_top_n: int = 10, ohlcv_top_n: int = 5, ohlcv_interval: str = "5m", max_symbols: int | None = None, skip_news: bool = False, skip_earnings: bool = True, use_intraday: bool = True, use_ohlcv_levels: bool = True) -> dict:
+def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int = 10, technical_top_n: int = 25, intraday_top_n: int = 10, ohlcv_top_n: int = 5, ohlcv_interval: str = "5m", max_symbols: int | None = None, skip_news: bool = False, skip_earnings: bool = True, use_intraday: bool = True, use_ohlcv_levels: bool = True, use_external_catalysts: bool = False) -> dict:
     if source.strip().lower() != "tvremix":
         raise ValueError("Por ahora scan-nasdaq100 solo soporta --source tvremix")
 
@@ -319,6 +320,8 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
 
     news_map: dict = {}
     earnings_map: dict = {}
+    external_catalysts_map: dict[str, dict] = {}
+    external_catalysts_not_configured = False
     rate_limit_reached = False
     earnings_rate_limit_reached = False
 
@@ -333,6 +336,17 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
                 global_warnings.append("rate limit alcanzado: se omiten noticias/earnings restantes")
             else:
                 global_warnings.append(f"get_news fallo global: {exc}")
+
+    if top_n > 0 and use_external_catalysts:
+        try:
+            external_catalysts_map = fetch_external_catalysts(catalyst_symbols, limit_per_symbol=3)
+            external_catalysts_not_configured = any(
+                "fuente externa de catalizadores no configurada" in (item.get("warnings") or [])
+                for item in external_catalysts_map.values()
+                if isinstance(item, dict)
+            )
+        except Exception as exc:
+            global_warnings.append(f"external_catalysts fallo global: {exc}")
 
     if top_n > 0 and not rate_limit_reached and not skip_earnings:
         try:
@@ -381,6 +395,9 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
         else:
             catalyst_summary = "Sin catalizador confirmado"
 
+        external_info = external_catalysts_map.get(key, {}) if isinstance(external_catalysts_map, dict) else {}
+        candidate["external_catalyst"] = external_info
+
         candidate["latest_news_titles"] = latest_titles
         candidate["news_count"] = len(latest_titles)
         candidate["earnings_items"] = earnings_items
@@ -389,6 +406,16 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
         candidate["catalyst_summary"] = catalyst_summary
         candidate["catalyst_headlines"] = latest_titles
         candidate["catalyst_source_count"] = len(source_values)
+        if has_recent_catalyst:
+            candidate["catalyst_origin"] = "tvremix_get_news"
+        elif external_info.get("has_recent_catalyst"):
+            candidate["has_recent_catalyst"] = True
+            candidate["catalyst_summary"] = external_info.get("catalyst_summary") or candidate["catalyst_summary"]
+            candidate["catalyst_headlines"] = external_info.get("catalyst_headlines") or []
+            candidate["catalyst_source_count"] = external_info.get("catalyst_source_count") or 0
+            candidate["catalyst_origin"] = "external_catalysts"
+        else:
+            candidate["catalyst_origin"] = "none"
         candidate.update(score_candidate(candidate))
         candidate["warnings"] = _dedup_messages(candidate.get("warnings"))
         candidate["reasons"] = _dedup_messages(candidate.get("reasons"))
@@ -429,6 +456,9 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
             no_headlines_symbols += 1
         if not skip_earnings and not candidate.get("earnings_items"):
             no_earnings_parseable_symbols += 1
+
+    if use_external_catalysts and external_catalysts_not_configured:
+        global_warnings.append("external_catalysts: fuente externa de catalizadores no configurada")
 
     if not skip_news and no_headlines_symbols:
         global_warnings.append(f"get_news sin titulares parseables para {no_headlines_symbols} símbolos")
@@ -552,5 +582,7 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
         "catalysts_queried": len(catalyst_symbols),
         "scanner_mode": scanner_mode,
         "candidates": ranked_final[:shown_limit],
+        "external_catalysts_enabled": bool(use_external_catalysts),
+        "external_catalysts_configured": bool(use_external_catalysts and not external_catalysts_not_configured),
         "global_warnings": deduped_global_warnings,
     }
