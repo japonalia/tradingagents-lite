@@ -250,14 +250,26 @@ def generate_scanner_report(candidates, output_path, source="tvremix", global_wa
 
     lines.extend(["", "## Catalizadores reales detectados", ""])
     catalyst_rows = [c for c in sorted_candidates if c.get("has_recent_catalyst")]
-    if catalyst_rows:
-        for c in catalyst_rows[:10]:
+    tvremix_rows = [c for c in catalyst_rows if c.get("catalyst_origin") == "tvremix_get_news"]
+    external_rows = [c for c in catalyst_rows if c.get("catalyst_origin") == "external_catalysts"]
+
+    lines.append("- TVRemix get_news:")
+    if tvremix_rows:
+        for c in tvremix_rows[:10]:
             headlines = ", ".join(_dedup_texts(c.get("catalyst_headlines") or c.get("latest_news_titles") or [])[:2]) or "sin titulares"
-            lines.append(
-                f"- {_fmt(c.get('ticker'))}: {_fmt(c.get('catalyst_summary'))} (fuentes={_fmt(c.get('catalyst_source_count'))}) | {headlines}"
-            )
+            lines.append(f"  - {_fmt(c.get('ticker'))}: {_fmt(c.get('catalyst_summary'))} (fuentes={_fmt(c.get('catalyst_source_count'))}) | {headlines}")
     else:
-        lines.append("No se detectaron catalizadores reales parseables.")
+        lines.append("  - Sin catalizadores parseables desde TVRemix.")
+
+    lines.append("- external_catalysts:")
+    if external_rows:
+        for c in external_rows[:10]:
+            headlines = ", ".join(_dedup_texts(c.get("catalyst_headlines") or [])[:2]) or "sin titulares"
+            lines.append(f"  - {_fmt(c.get('ticker'))}: {_fmt(c.get('catalyst_summary'))} (fuentes={_fmt(c.get('catalyst_source_count'))}) | {headlines}")
+    elif any("external_catalysts: fuente externa de catalizadores no configurada" in w for w in gw):
+        lines.append("  - Fuente externa de catalizadores no configurada.")
+    else:
+        lines.append("  - Sin catalizadores externos detectados en esta corrida.")
 
     lines.extend(["", "## Niveles intradía destacados", ""])
     level_candidates = [c for c in sorted_candidates if c.get("intraday_high") not in (None, "")]

@@ -6,10 +6,10 @@
 4. ✅ **TVRemix schema diagnostic completado**: inventario local de tools disponible y persistido en reportes sanitizados.
 5. ✅ **TVRemix ticker individual funcionando**: mapeo inicial de ticker TVRemix (`get_quote`, `get_technicals`, `get_financials`, `get_news`, `get_ohlcv`) con fallback a yfinance.
 6. ✅ **Fuerza relativa vs QQQ en scanner Nasdaq 100**: `RS vs QQQ = cambio de la acción - cambio de QQQ` con warning global si QQQ no está disponible.
-7. ✅ **Paso actual**: recalibración intradía del scoring Nasdaq 100 (penalización por RVOL bajo, extensión excesiva y cap de score sin catalizador confirmado).
+7. ✅ **Paso actual**: infraestructura de catalizadores externos para Top final del scanner Nasdaq 100 (stub seguro, opcional, sin API real por defecto).
 8. ✅ **Paso completado**: auditoría del universo Nasdaq 100 del scanner (inventario, chequeos de duplicados/formato y reporte en `reports/generated/nasdaq100_universe_audit.md`).
 9. ✅ **Paso completado**: salida del scanner optimizada para GPT TradingAgents / Plantilla 7 (resumen ejecutivo, estado de candidata y limitaciones).
-10. 🔜 **Próximo paso**: catalizadores externos reales y confiables para enriquecer el Top final del scanner.
+10. 🔜 **Próximo paso**: conectar un proveedor real de noticias/catalizadores sobre la infraestructura externa ya preparada.
 
 
 ## Estado intradía TVRemix (experimental)

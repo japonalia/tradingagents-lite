@@ -42,8 +42,8 @@ def run_ticker_command(ticker: str, source: str = "yfinance", skip_intraday: boo
 
 
 
-def run_scan_nasdaq100_command(source: str = "tvremix", limit: int = 10, catalyst_top_n: int = 10, technical_top_n: int = 25, intraday_top_n: int = 10, ohlcv_top_n: int = 5, ohlcv_interval: str = "5m", max_symbols: int | None = None, skip_news: bool = False, skip_earnings: bool = True, skip_intraday: bool = False, skip_ohlcv_levels: bool = False) -> Path:
-    result = scan_nasdaq100(source=source, limit=limit, catalyst_top_n=catalyst_top_n, technical_top_n=technical_top_n, intraday_top_n=intraday_top_n, ohlcv_top_n=ohlcv_top_n, ohlcv_interval=ohlcv_interval, max_symbols=max_symbols, skip_news=skip_news, skip_earnings=skip_earnings, use_intraday=not skip_intraday, use_ohlcv_levels=not skip_ohlcv_levels)
+def run_scan_nasdaq100_command(source: str = "tvremix", limit: int = 10, catalyst_top_n: int = 10, technical_top_n: int = 25, intraday_top_n: int = 10, ohlcv_top_n: int = 5, ohlcv_interval: str = "5m", max_symbols: int | None = None, skip_news: bool = False, skip_earnings: bool = True, skip_intraday: bool = False, skip_ohlcv_levels: bool = False, external_catalysts: bool = False) -> Path:
+    result = scan_nasdaq100(source=source, limit=limit, catalyst_top_n=catalyst_top_n, technical_top_n=technical_top_n, intraday_top_n=intraday_top_n, ohlcv_top_n=ohlcv_top_n, ohlcv_interval=ohlcv_interval, max_symbols=max_symbols, skip_news=skip_news, skip_earnings=skip_earnings, use_intraday=not skip_intraday, use_ohlcv_levels=not skip_ohlcv_levels, use_external_catalysts=external_catalysts)
     return generate_scanner_report(
         candidates=result.get("candidates", []),
         global_warnings=result.get("global_warnings", []),
@@ -80,6 +80,7 @@ def build_parser() -> argparse.ArgumentParser:
     scan_parser.add_argument("--skip-earnings", action=argparse.BooleanOptionalAction, default=True, help="Omite consulta de earnings (por defecto: activado)")
     scan_parser.add_argument("--skip-intraday", action="store_true", help="Desactiva capa intradía de run_screener")
     scan_parser.add_argument("--skip-ohlcv-levels", action="store_true", help="Omite niveles intradía derivados de get_ohlcv")
+    scan_parser.add_argument("--external-catalysts", action="store_true", help="Activa capa opcional de catalizadores externos (stub seguro si no hay proveedor)")
 
     return parser
 
@@ -99,7 +100,7 @@ def main() -> None:
 
     if args.command == "scan-nasdaq100":
         try:
-            output_file = run_scan_nasdaq100_command(source=args.source, limit=args.limit, catalyst_top_n=args.catalyst_top_n, technical_top_n=args.technical_top_n, intraday_top_n=args.intraday_top_n, ohlcv_top_n=args.ohlcv_top_n, ohlcv_interval=args.ohlcv_interval, max_symbols=args.max_symbols, skip_news=args.skip_news, skip_earnings=args.skip_earnings, skip_intraday=args.skip_intraday, skip_ohlcv_levels=args.skip_ohlcv_levels)
+            output_file = run_scan_nasdaq100_command(source=args.source, limit=args.limit, catalyst_top_n=args.catalyst_top_n, technical_top_n=args.technical_top_n, intraday_top_n=args.intraday_top_n, ohlcv_top_n=args.ohlcv_top_n, ohlcv_interval=args.ohlcv_interval, max_symbols=args.max_symbols, skip_news=args.skip_news, skip_earnings=args.skip_earnings, skip_intraday=args.skip_intraday, skip_ohlcv_levels=args.skip_ohlcv_levels, external_catalysts=args.external_catalysts)
         except Exception as exc:
             print(f"Error al ejecutar scanner Nasdaq 100: {exc}")
             return
