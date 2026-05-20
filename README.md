@@ -97,7 +97,7 @@ Esto hace:
 - Obtiene datos de mercado e histórico diario desde la capa de proveedores.
 - Calcula indicadores técnicos básicos (SMA, RSI, MACD, ATR).
 - Calcula niveles simples de soporte/resistencia y rangos recientes.
-- Genera un informe Markdown bruto listo para pegar en TradingAgents GPT.
+- Genera un informe Markdown optimizado para pegar directo en GPT TradingAgents (Plantilla 7 / Modo B), con resumen ejecutivo, estado de candidata intradía y limitaciones de datos.
 
 Comportamiento con TVRemix:
 - Si pasas `NVDA`, se normaliza a `NASDAQ:NVDA` internamente para TVRemix.
@@ -147,6 +147,8 @@ Scanner Nasdaq 100 operativo: usa `config/nasdaq100_symbols.yaml` (universo ampl
 - Fuerza relativa vs QQQ incluida en scanner: **RS vs QQQ = variación % de la acción − variación % de QQQ** (si QQQ no está disponible, se deja como N/A y se reporta warning global).
 - Niveles intradía opcionales desde `get_ohlcv`: se calculan solo para el Top preliminar, no para todo el universo, e incluyen high/low intradía, rango %, cierre intradía, VWAP aproximado desde barras, distancia a VWAP, banderas cerca de high/low y soporte/resistencia aproximados.
 - Recalibración intradía activa en scoring: ahora se penaliza explícitamente RVOL bajo, movimientos fuertes sin confirmación de volumen y extensiones excesivas sobre VWAP; además, se aplican topes de score cuando no hay catalizador confirmado y el RVOL es bajo.
+
+- Salida optimizada para GPT TradingAgents / Plantilla 7: el reporte `reports/generated/nasdaq100_scan_report.md` agrega una lectura ejecutiva rápida (Top 1, setup quality, estado de candidata, riesgo principal) + interpretación de mercado + limitaciones de datos, sin alterar el scoring base.
 
 
 Parámetros del scanner Nasdaq 100:
