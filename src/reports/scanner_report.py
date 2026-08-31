@@ -64,7 +64,10 @@ def _compute_day_trade_status(candidate, warnings):
     vwap = _to_float(candidate.get("vwap"))
     severe = _has_severe_warning(warnings)
     confirmed_catalyst = _has_confirmed_catalyst(candidate)
+    catalyst_direction = str(candidate.get("catalyst_direction") or "neutral").strip().lower()
 
+    if confirmed_catalyst and catalyst_direction == "negative":
+        return "no_trade_quality", "Catalizador confirmado negativo: incompatible con la estrategia exclusivamente larga."
     if severe or (rvol is not None and rvol < 0.5):
         return "no_trade_quality", "Warning grave o RVOL crítico (<0.5) en la candidata principal."
     if (
@@ -103,6 +106,7 @@ def generate_scanner_report(candidates, output_path, source="tvremix", global_wa
     intraday_via_get_symbol_data = int((metrics or {}).get("intraday_via_get_symbol_data", 0))
     technicals_available = int((metrics or {}).get("technicals_available", 0))
     catalysts_queried = int((metrics or {}).get("catalysts_queried", 0))
+    catalyst_scope = str((metrics or {}).get("catalyst_scope", "top"))
     technicals_batch_available = int((metrics or {}).get("technicals_batch_available", 0))
     technicals_fallback_individual = int((metrics or {}).get("technicals_fallback_individual", 0))
     technicals_not_available = int((metrics or {}).get("technicals_not_available", 0))
@@ -149,6 +153,7 @@ def generate_scanner_report(candidates, output_path, source="tvremix", global_wa
         f"- Técnicos fallback individuales: **{technicals_fallback_individual}**",
         f"- Técnicos no disponibles: **{technicals_not_available}**",
         f"- Catalizadores consultados: **{catalysts_queried}**",
+        f"- Cobertura PREMARKET_CATALYST_ENGINE: **{catalyst_scope}**",
         f"- QQQ referencia: **{_fmt(qqq_change_percent)}**",
         f"- Fuerza relativa disponible: **{relative_strength_available}/{total}**",
         f"- OHLCV intradía consultados: **{ohlcv_intraday_requested}**",
@@ -171,7 +176,9 @@ def generate_scanner_report(candidates, output_path, source="tvremix", global_wa
     top_vwap = _to_float(top_candidate.get("vwap"))
     top_change = _to_float(top_candidate.get("change_percent"))
     setup_quality = "Media"
-    if (
+    if _has_severe_warning(top_warnings):
+        setup_quality = "Baja"
+    elif (
         top_rvol is not None and top_rvol >= 1.5
         and top_rs is not None and top_rs > 1
         and top_price is not None and top_vwap is not None and top_price > top_vwap
@@ -189,6 +196,8 @@ def generate_scanner_report(candidates, output_path, source="tvremix", global_wa
         or (not _has_confirmed_catalyst(top_candidate) and top_change is not None and abs(top_change) >= 4)
     ):
         setup_quality = "Baja"
+    if _has_confirmed_catalyst(top_candidate) and str(top_candidate.get("catalyst_direction") or "").lower() == "negative":
+        setup_quality = "Baja"
 
     lines.extend([
         "",
@@ -200,6 +209,8 @@ def generate_scanner_report(candidates, output_path, source="tvremix", global_wa
         f"- RVOL: **{_fmt(top_candidate.get('rvol_10d'))}**",
         f"- VWAP: **{_fmt(top_candidate.get('vwap'))}**",
         f"- Catalizador: **{_fmt(top_candidate.get('catalyst_summary'))}**",
+        f"- CATALYST_SCORE: **{_fmt(top_candidate.get('catalyst_score'))}** ({_fmt(top_candidate.get('catalyst_classification'))})",
+        f"- Validación catalizador: **{_fmt(top_candidate.get('catalyst_validation_state'))}**",
         f"- Setup quality: **{setup_quality}**",
         f"- Estado candidato: **{day_trade_candidate_status}** — {status_explanation}",
         f"- Nota de riesgo principal: **{'; '.join(top_warnings[:2]) if top_warnings else 'Sin warnings críticos en Top 1.'}**",
@@ -211,7 +222,12 @@ def generate_scanner_report(candidates, output_path, source="tvremix", global_wa
     rvol_sufficient_count = sum(1 for c in sorted_candidates[:10] if (_to_float(c.get("rvol_10d")) or 0) >= 1)
     has_real_catalysts = any(_has_confirmed_catalyst(c) for c in sorted_candidates[:10])
     qqq_direction = "positivo" if (qqq_change_percent is not None and _to_float(qqq_change_percent) is not None and _to_float(qqq_change_percent) >= 0) else "negativo"
-    day_action = "acción del día clara" if day_trade_candidate_status == "clear_candidate" else "candidata técnica"
+    if day_trade_candidate_status == "clear_candidate":
+        day_action = "acción del día clara"
+    elif day_trade_candidate_status == "no_trade_quality":
+        day_action = "NO TRADE por calidad insuficiente"
+    else:
+        day_action = "candidata técnica"
 
     lines.extend([
         "",
@@ -226,8 +242,8 @@ def generate_scanner_report(candidates, output_path, source="tvremix", global_wa
         "",
         "## Top candidatas",
         "",
-        "| Ranking | Ticker | Precio | Variación % | RS vs QQQ | Volumen | RVOL | VWAP | Gap/PM | Rating técnico | RSI | Catalizador | Score | Riesgo / warnings |",
-        "|---:|---|---:|---:|---:|---:|---:|---:|---|---|---:|---|---:|---|",
+        "| Ranking | Ticker | Precio | Variación % | RS vs QQQ | Volumen | RVOL | VWAP | Gap/PM | Rating técnico | RSI | Catalizador | CATALYST_SCORE | Validación | Score | Riesgo / warnings |",
+        "|---:|---|---:|---:|---:|---:|---:|---:|---|---|---:|---|---:|---|---:|---|",
     ])
     for idx, c in enumerate(sorted_candidates, start=1):
         local_warnings = []
@@ -237,7 +253,7 @@ def generate_scanner_report(candidates, output_path, source="tvremix", global_wa
                 local_warnings.append(text[:120])
         warnings = "; ".join(_dedup_texts(local_warnings)[:3]) or "-"
         gap_pm = f"g:{_fmt(c.get('gap'))}/pm:{_fmt(c.get('premarket_gap'))}"
-        lines.append(f"| {idx} | {_fmt(c.get('ticker'))} | {_fmt(c.get('price'))} | {_fmt(c.get('change_percent'))} | {_fmt(c.get('relative_strength_vs_qqq'))} | {_fmt(c.get('volume'))} | {_fmt(c.get('rvol_10d'))} | {_fmt(c.get('vwap'))} | {gap_pm} | {_fmt(c.get('technical_rating'))} | {_fmt(c.get('rsi'))} | {_fmt(c.get('catalyst_summary'))} | {_fmt(c.get('total_score'))} | {warnings} |")
+        lines.append(f"| {idx} | {_fmt(c.get('ticker'))} | {_fmt(c.get('price'))} | {_fmt(c.get('change_percent'))} | {_fmt(c.get('relative_strength_vs_qqq'))} | {_fmt(c.get('volume'))} | {_fmt(c.get('rvol_10d'))} | {_fmt(c.get('vwap'))} | {gap_pm} | {_fmt(c.get('technical_rating'))} | {_fmt(c.get('rsi'))} | {_fmt(c.get('catalyst_summary'))} | {_fmt(c.get('catalyst_score'))} | {_fmt(c.get('catalyst_validation_state'))} | {_fmt(c.get('total_score'))} | {warnings} |")
 
     lines.extend(["", "## Fuerza relativa vs QQQ", ""])
     rs_candidates = [c for c in sorted_candidates if c.get("relative_strength_vs_qqq") not in (None, "")][:10]

@@ -143,7 +143,7 @@ Esta ruta permite validar el MVP end-to-end sin depender de APIs externas ni con
 
 ## Estado del scanner Nasdaq 100
 
-Scanner Nasdaq 100 operativo: usa `config/nasdaq100_symbols.yaml` (universo amplio), consulta `get_quotes_batch` para todo el universo en **chunks de hasta 50 símbolos** (límite de TVRemix), hace scoring preliminar y limita consultas costosas por fases: técnicos para `--technical-top-n`, niveles OHLCV intradía para `--ohlcv-top-n` y catalizadores para `--catalyst-top-n`. El reporte incluye warnings globales separados de warnings por ticker.
+Scanner Nasdaq 100 operativo: usa `config/nasdaq100_symbols.yaml` (universo declarado), consulta `get_quotes_batch` para todo el universo en **chunks de hasta 50 símbolos** (límite de TVRemix) y hace scoring determinista. Técnicos y OHLCV se limitan por Top preliminar; catalizadores intentan cubrir el universo completo por defecto y admiten `--catalyst-scope top` cuando el proveedor impone rate limits. El reporte incluye warnings globales separados de warnings por ticker.
 - Fuerza relativa vs QQQ incluida en scanner: **RS vs QQQ = variación % de la acción − variación % de QQQ** (si QQQ no está disponible, se deja como N/A y se reporta warning global).
 - Niveles intradía opcionales desde `get_ohlcv`: se calculan solo para el Top preliminar, no para todo el universo, e incluyen high/low intradía, rango %, cierre intradía, VWAP aproximado desde barras, distancia a VWAP, banderas cerca de high/low y soporte/resistencia aproximados.
 - Recalibración intradía activa en scoring: ahora se penaliza explícitamente RVOL bajo, movimientos fuertes sin confirmación de volumen y extensiones excesivas sobre VWAP; además, se aplican topes de score cuando no hay catalizador confirmado y el RVOL es bajo.
@@ -155,7 +155,8 @@ Parámetros del scanner Nasdaq 100:
 - `--limit`: limita solo cuántas filas se muestran en el ranking final del reporte.
 - `--technical-top-n`: limita cuántas candidatas preliminares reciben consultas técnicas (`analyze_multi_timeframe_batch` y fallback individual).
 - `--intraday-top-n`: limita cuántas candidatas preliminares reciben fallback intradía con `get_symbol_data` cuando `run_screener` no cubre bien el universo Nasdaq 100.
-- `--catalyst-top-n`: limita cuántas candidatas preliminares reciben consultas de catalizadores.
+- `--catalyst-top-n`: activa la capa de catalizadores cuando es mayor que cero. Con `--catalyst-scope top`, limita cuántas candidatas preliminares se consultan.
+- `--catalyst-scope universe|top`: por defecto `universe`; exige intentar noticias/earnings para cada símbolo del universo declarado. `top` conserva el modo reducido para entornos con rate limit.
 - `--ohlcv-top-n`: limita cuántas candidatas preliminares reciben consulta `get_ohlcv` para calcular niveles intradía. Por defecto es `5`, para evitar solicitar barras de los 98 símbolos del universo.
 - `--ohlcv-interval`: intervalo de barras usado en `get_ohlcv` para los niveles intradía. Por defecto es `5m`; puedes usar otro intervalo soportado por TVRemix.
 - `--skip-news`: omite consulta de `get_news` para reducir ruido/costo cuando solo quieres técnicos.
@@ -163,14 +164,15 @@ Parámetros del scanner Nasdaq 100:
 - `--skip-intraday`: desactiva enriquecimiento intradía desde `run_screener` (RVOL/VWAP/premarket/gap).
 - `--skip-ohlcv-levels`: omite la capa de niveles intradía desde `get_ohlcv`; el scanner sigue funcionando con quotes, técnicos, RVOL/VWAP de screener y fuerza relativa.
 - `--max-symbols`: límite opcional del universo evaluado (solo debug/pruebas). Por defecto `None` para evaluar todo `config/nasdaq100_symbols.yaml`.
-- `--external-catalysts`: capa opcional/experimental de catalizadores externos para el Top final. Actualmente usa un stub seguro y, si no hay proveedor configurado, no rompe el scanner.
+- `--external-catalysts`: capa opcional/experimental de segundo proveedor para el scope de catalizadores seleccionado. Actualmente usa un stub seguro y, si no hay proveedor configurado, no rompe el scanner.
 
 
 Recomendación operativa del scanner:
 - Primera pasada: usar scanner sin earnings (default) para maximizar estabilidad y legibilidad del reporte.
 - Activar `--no-skip-earnings` solo cuando necesites confirmar eventos cercanos y aceptes mayor ruido/riesgo de rate limit.
 - Modo estable recomendado (sin noticias): usar `--catalyst-top-n 0 --skip-news --skip-earnings`.
-- Para activar catalizadores TVRemix en modo prudente, usar `--catalyst-top-n 5 --skip-earnings` (consulta noticias solo para Top final y evita barrer todo el universo).
+- Para activar catalizadores TVRemix con cobertura completa, usar `--catalyst-top-n 1 --catalyst-scope universe --skip-earnings`.
+- Si el proveedor aplica rate limit, usar el modo reducido `--catalyst-top-n 5 --catalyst-scope top --skip-earnings`; la auditoría dejará constancia de que la cobertura no fue total.
 - Para preparar capa externa (experimental, sin API real): añadir `--external-catalysts`; si no hay proveedor configurado, el reporte indicará "Fuente externa de catalizadores no configurada."
 
 Diagnóstico de `get_news` (TVRemix):
@@ -203,3 +205,43 @@ Auditoría de universo Nasdaq 100:
 ```bash
 python tools/audit_nasdaq100_universe.py
 ```
+
+## Contrato de procedencia y frescura
+
+Cada candidata incorpora `data_provenance` por campo con:
+
+- fuente;
+- hora observada y hora recibida;
+- antigüedad calculada;
+- estado `live`, `delayed`, `stale`, `estimated`, `unavailable` o `unknown`;
+- motivo de clasificación y permiso explícito para afirmar que el dato es vivo.
+
+Un valor sin timestamp parseable se clasifica como `unknown`, nunca como `live`. Las marcas explícitas `stale` y `estimated` prevalecen aunque el timestamp sea reciente.
+Los estados `delayed`, `stale`, `estimated` y `unknown` reducen de forma explícita el componente de calidad del ranking; la presencia de datos `stale` o `estimated` limita además el score total máximo a 75.
+
+Cada corrida CLI escribe `reports/generated/nasdaq100_scan_audit.json`, con `run_id`, tiempos, lista completa del universo, hash SHA-256, procedencia, campos ausentes, warnings y motivos de ranking para cada candidata.
+
+## PREMARKET_CATALYST_ENGINE
+
+El motor calcula `CATALYST_SCORE` 0–100 de forma determinista:
+
+- materialidad 0–30;
+- frescura 0–15;
+- fuente/confirmación 0–15;
+- sorpresa 0–15;
+- reacción premarket 0–10;
+- volumen/RVOL premarket 0–10;
+- impacto sectorial/sympathy 0–5.
+
+Clasificación: `EXTREME_EVENT` (90–100), `STRONG_CATALYST` (75–89), `MATERIAL_CATALYST` (60–74), `SECONDARY` (40–59) y `NOISE` (<40).
+
+Una fuente oficial/autoritativa o dos fuentes reconocidas e independientes son necesarias para marcar un catalizador como confirmado. Un titular de una sola fuente puede generar un score descriptivo, pero recibe cero crédito de catalizador confirmado en el ranking. Para la estrategia exclusivamente larga, un evento negativo confirmado también recibe cero crédito alcista.
+
+Pruebas y fixture de aceptación:
+
+```bash
+python -m unittest discover -s tests -v
+python tools/generate_scanner_contract_fixture.py
+```
+
+El fixture mezcla datos actuales, retrasados, estimados y ausentes, y está marcado expresamente como no operativo.
