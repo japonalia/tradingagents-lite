@@ -1,0 +1,334 @@
+{
+  "schema_version": "1.0",
+  "run_id": "e873ae6e-514e-4ec0-a06f-0726e9a02ea8",
+  "started_at": "2026-08-31T12:33:27.547256+00:00",
+  "completed_at": "2026-08-31T12:33:27.548257+00:00",
+  "universe": {
+    "name": "Nasdaq-100 declared scanner universe",
+    "source": "config/nasdaq100_symbols.yaml",
+    "symbol_count": 98,
+    "sha256": "be00eb42e320c0b19782fa42a34a3918f520bad161f084324c293530301aec02",
+    "symbols": [
+      "NASDAQ:ADBE",
+      "NASDAQ:ADI",
+      "NASDAQ:ADP",
+      "NASDAQ:ADSK",
+      "NASDAQ:AEP",
+      "NASDAQ:AMAT",
+      "NASDAQ:AMD",
+      "NASDAQ:AMGN",
+      "NASDAQ:AMZN",
+      "NASDAQ:ANSS",
+      "NASDAQ:APP",
+      "NASDAQ:ARM",
+      "NASDAQ:ASML",
+      "NASDAQ:AVGO",
+      "NASDAQ:AXON",
+      "NASDAQ:AZN",
+      "NASDAQ:BIIB",
+      "NASDAQ:BKNG",
+      "NASDAQ:BKR",
+      "NASDAQ:CCEP",
+      "NASDAQ:CDNS",
+      "NASDAQ:CDW",
+      "NASDAQ:CEG",
+      "NASDAQ:CHTR",
+      "NASDAQ:CMCSA",
+      "NASDAQ:COST",
+      "NASDAQ:CPRT",
+      "NASDAQ:CRWD",
+      "NASDAQ:CSCO",
+      "NASDAQ:CSX",
+      "NASDAQ:CTAS",
+      "NASDAQ:CTSH",
+      "NASDAQ:DDOG",
+      "NASDAQ:DLTR",
+      "NASDAQ:DXCM",
+      "NASDAQ:EA",
+      "NASDAQ:EXC",
+      "NASDAQ:FANG",
+      "NASDAQ:FAST",
+      "NASDAQ:FTNT",
+      "NASDAQ:GEHC",
+      "NASDAQ:GFS",
+      "NASDAQ:GILD",
+      "NASDAQ:GOOG",
+      "NASDAQ:GOOGL",
+      "NASDAQ:HON",
+      "NASDAQ:IDXX",
+      "NASDAQ:ILMN",
+      "NASDAQ:INTC",
+      "NASDAQ:INTU",
+      "NASDAQ:ISRG",
+      "NASDAQ:KDP",
+      "NASDAQ:KHC",
+      "NASDAQ:KLAC",
+      "NASDAQ:LIN",
+      "NASDAQ:LRCX",
+      "NASDAQ:LULU",
+      "NASDAQ:LITE",
+      "NASDAQ:MAR",
+      "NASDAQ:MCHP",
+      "NASDAQ:MDLZ",
+      "NASDAQ:MELI",
+      "NASDAQ:META",
+      "NASDAQ:MNST",
+      "NASDAQ:MRNA",
+      "NASDAQ:MRVL",
+      "NASDAQ:MSFT",
+      "NASDAQ:MU",
+      "NASDAQ:NFLX",
+      "NASDAQ:NVDA",
+      "NASDAQ:NXPI",
+      "NASDAQ:ODFL",
+      "NASDAQ:ON",
+      "NASDAQ:ORLY",
+      "NASDAQ:PANW",
+      "NASDAQ:PAYX",
+      "NASDAQ:PCAR",
+      "NASDAQ:PDD",
+      "NASDAQ:PEP",
+      "NASDAQ:PLTR",
+      "NASDAQ:PYPL",
+      "NASDAQ:QCOM",
+      "NASDAQ:REGN",
+      "NASDAQ:ROP",
+      "NASDAQ:ROST",
+      "NASDAQ:SBUX",
+      "NASDAQ:SNPS",
+      "NASDAQ:TEAM",
+      "NASDAQ:TMUS",
+      "NASDAQ:TSLA",
+      "NASDAQ:TTD",
+      "NASDAQ:TXN",
+      "NASDAQ:VRSK",
+      "NASDAQ:VRTX",
+      "NASDAQ:WBD",
+      "NASDAQ:WDAY",
+      "NASDAQ:XEL",
+      "NASDAQ:ZS"
+    ]
+  },
+  "candidate_count": 1,
+  "candidates": [
+    {
+      "ticker": "NASDAQ:ADBE",
+      "score": 10.0,
+      "catalyst_score": 0.0,
+      "catalyst_classification": "NOISE",
+      "confirmed_catalyst": false,
+      "catalyst_validation_state": "unverified",
+      "quality_states": [
+        "unavailable"
+      ],
+      "provenance": {
+        "price": {
+          "field": "price",
+          "source": "tvremix:get_quotes_batch",
+          "observed_at": null,
+          "received_at": "2026-08-31T12:33:27.547256+00:00",
+          "age_seconds": null,
+          "quality_state": "unavailable",
+          "is_usable_for_live_claim": false,
+          "reasons": [
+            "value_missing"
+          ]
+        },
+        "change_percent": {
+          "field": "change_percent",
+          "source": "tvremix:get_quotes_batch",
+          "observed_at": null,
+          "received_at": "2026-08-31T12:33:27.547256+00:00",
+          "age_seconds": null,
+          "quality_state": "unavailable",
+          "is_usable_for_live_claim": false,
+          "reasons": [
+            "value_missing"
+          ]
+        },
+        "volume": {
+          "field": "volume",
+          "source": "tvremix:get_quotes_batch",
+          "observed_at": null,
+          "received_at": "2026-08-31T12:33:27.547256+00:00",
+          "age_seconds": null,
+          "quality_state": "unavailable",
+          "is_usable_for_live_claim": false,
+          "reasons": [
+            "value_missing"
+          ]
+        },
+        "intraday_close": {
+          "field": "intraday_close",
+          "source": "tvremix:run_screener",
+          "observed_at": null,
+          "received_at": "2026-08-31T12:33:27.547256+00:00",
+          "age_seconds": null,
+          "quality_state": "unavailable",
+          "is_usable_for_live_claim": false,
+          "reasons": [
+            "value_missing"
+          ]
+        },
+        "intraday_change": {
+          "field": "intraday_change",
+          "source": "tvremix:run_screener",
+          "observed_at": null,
+          "received_at": "2026-08-31T12:33:27.547256+00:00",
+          "age_seconds": null,
+          "quality_state": "unavailable",
+          "is_usable_for_live_claim": false,
+          "reasons": [
+            "value_missing"
+          ]
+        },
+        "intraday_volume": {
+          "field": "intraday_volume",
+          "source": "tvremix:run_screener",
+          "observed_at": null,
+          "received_at": "2026-08-31T12:33:27.547256+00:00",
+          "age_seconds": null,
+          "quality_state": "unavailable",
+          "is_usable_for_live_claim": false,
+          "reasons": [
+            "value_missing"
+          ]
+        },
+        "rvol_10d": {
+          "field": "rvol_10d",
+          "source": "tvremix:run_screener",
+          "observed_at": null,
+          "received_at": "2026-08-31T12:33:27.547256+00:00",
+          "age_seconds": null,
+          "quality_state": "unavailable",
+          "is_usable_for_live_claim": false,
+          "reasons": [
+            "value_missing"
+          ]
+        },
+        "vwap": {
+          "field": "vwap",
+          "source": "tvremix:run_screener",
+          "observed_at": null,
+          "received_at": "2026-08-31T12:33:27.547256+00:00",
+          "age_seconds": null,
+          "quality_state": "unavailable",
+          "is_usable_for_live_claim": false,
+          "reasons": [
+            "value_missing"
+          ]
+        },
+        "premarket_change": {
+          "field": "premarket_change",
+          "source": "tvremix:run_screener",
+          "observed_at": null,
+          "received_at": "2026-08-31T12:33:27.547256+00:00",
+          "age_seconds": null,
+          "quality_state": "unavailable",
+          "is_usable_for_live_claim": false,
+          "reasons": [
+            "value_missing"
+          ]
+        },
+        "premarket_gap": {
+          "field": "premarket_gap",
+          "source": "tvremix:run_screener",
+          "observed_at": null,
+          "received_at": "2026-08-31T12:33:27.547256+00:00",
+          "age_seconds": null,
+          "quality_state": "unavailable",
+          "is_usable_for_live_claim": false,
+          "reasons": [
+            "value_missing"
+          ]
+        },
+        "technical_rating": {
+          "field": "technical_rating",
+          "source": "tvremix:analyze_multi_timeframe_batch",
+          "observed_at": null,
+          "received_at": "2026-08-31T12:33:27.547256+00:00",
+          "age_seconds": null,
+          "quality_state": "unavailable",
+          "is_usable_for_live_claim": false,
+          "reasons": [
+            "value_missing"
+          ]
+        },
+        "rsi": {
+          "field": "rsi",
+          "source": "tvremix:analyze_multi_timeframe_batch",
+          "observed_at": null,
+          "received_at": "2026-08-31T12:33:27.547256+00:00",
+          "age_seconds": null,
+          "quality_state": "unavailable",
+          "is_usable_for_live_claim": false,
+          "reasons": [
+            "value_missing"
+          ]
+        },
+        "macd": {
+          "field": "macd",
+          "source": "tvremix:analyze_multi_timeframe_batch",
+          "observed_at": null,
+          "received_at": "2026-08-31T12:33:27.547256+00:00",
+          "age_seconds": null,
+          "quality_state": "unavailable",
+          "is_usable_for_live_claim": false,
+          "reasons": [
+            "value_missing"
+          ]
+        },
+        "adx": {
+          "field": "adx",
+          "source": "tvremix:analyze_multi_timeframe_batch",
+          "observed_at": null,
+          "received_at": "2026-08-31T12:33:27.547256+00:00",
+          "age_seconds": null,
+          "quality_state": "unavailable",
+          "is_usable_for_live_claim": false,
+          "reasons": [
+            "value_missing"
+          ]
+        },
+        "atr": {
+          "field": "atr",
+          "source": "tvremix:analyze_multi_timeframe_batch",
+          "observed_at": null,
+          "received_at": "2026-08-31T12:33:27.547256+00:00",
+          "age_seconds": null,
+          "quality_state": "unavailable",
+          "is_usable_for_live_claim": false,
+          "reasons": [
+            "value_missing"
+          ]
+        }
+      },
+      "missing_fields": [
+        "price",
+        "change_percent",
+        "volume",
+        "technical_rating",
+        "rsi"
+      ],
+      "warnings": [
+        "quote no disponible en get_quotes_batch",
+        "technicals no disponibles en analyze_multi_timeframe_batch/get_technicals"
+      ],
+      "ranking_reasons": [
+        "Sin change_percent.",
+        "Sin volumen.",
+        "Sin rating técnico utilizable.",
+        "Sin RSI.",
+        "Sin catalizador confirmado."
+      ]
+    }
+  ],
+  "global_warnings": [
+    "get_quotes_batch chunk 1 falló (size=1): TVRemix MCP no está configurado. Define TVREMIX_MCP_URL y TVREMIX_API_KEY.",
+    "get_quotes_batch sin payload parseable en todos los chunks.",
+    "QQQ no disponible; fuerza relativa no calculada",
+    "niveles intradía OHLCV omitidos por --skip-ohlcv-levels",
+    "analyze_multi_timeframe_batch falló globalmente: TVRemix MCP no está configurado. Define TVREMIX_MCP_URL y TVREMIX_API_KEY.",
+    "get_technicals falló para NASDAQ:ADBE: TVRemix MCP no está configurado. Define TVREMIX_MCP_URL y TVREMIX_API_KEY."
+  ]
+}

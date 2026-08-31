@@ -154,19 +154,17 @@ def score_candidate(candidate: dict) -> dict:
         technical += 3
     technical = min(20.0, technical)
 
-    # Catalizador / noticias / earnings: 0-20
+    # Catalizador validado: 0-20. Titulares sin confirmar no reciben crédito.
     catalyst = 0.0
-    if candidate.get("news_count", 0) > 0:
-        catalyst += min(12.0, 4.0 * float(candidate.get("news_count", 0)))
-    if candidate.get("earnings_nearby"):
-        catalyst += 8.0
     has_recent_catalyst = bool(candidate.get("has_recent_catalyst"))
     if has_recent_catalyst:
-        catalyst += 3.0
-    if not has_recent_catalyst:
-        catalyst = max(0.0, catalyst - 6.0)
+        catalyst_credit = _to_float(candidate.get("catalyst_ranking_credit"))
+        if catalyst_credit is not None:
+            catalyst = min(20.0, catalyst_credit * 0.2)
+        else:
+            catalyst = 3.0
+    else:
         penalties.append("Sin catalizador confirmado.")
-    catalyst = min(20.0, catalyst)
 
     if intraday_expected:
         rvol_10d = candidate.get("rvol_10d")
@@ -193,14 +191,33 @@ def score_candidate(candidate: dict) -> dict:
             penalties.append("Penalización por VWAP faltante.")
             intraday = max(0.0, intraday - 2.0)
 
-    # Data quality: 0-20
-    data_quality = max(0.0, 20.0 - len(set(missing_fields)) * 4.0)
+    # Data quality: 0-20, enforcing provenance/freshness reductions.
+    provenance = candidate.get("data_provenance") if isinstance(candidate.get("data_provenance"), dict) else {}
+    relevant_quality_states = [
+        str(record.get("quality_state") or "unknown")
+        for record in provenance.values()
+        if isinstance(record, dict) and record.get("field") in {
+            "price", "change_percent", "volume", "intraday_close", "intraday_volume",
+            "rvol_10d", "vwap", "premarket_change", "premarket_gap", "technical_rating", "rsi", "catalyst",
+        }
+    ]
+    quality_penalty_weights = {"delayed": 1.0, "stale": 4.0, "estimated": 3.0, "unknown": 2.0}
+    quality_penalty = sum(quality_penalty_weights.get(state, 0.0) for state in relevant_quality_states)
+    data_quality = max(0.0, 20.0 - len(set(missing_fields)) * 4.0 - quality_penalty)
+    reduced_states = sorted({state for state in relevant_quality_states if state in quality_penalty_weights})
+    if reduced_states:
+        message = f"Calidad de datos reducida por procedencia/frescura: {', '.join(reduced_states)}."
+        _append_unique(warnings, message)
+        penalties.append(message)
 
     # Riesgo / penalizaciones: 0-10
     risk = 10.0
     if "STRONG_SELL" in rating:
         risk -= 4
         penalties.append("Rating técnico Strong Sell.")
+    if str(candidate.get("catalyst_direction") or "").lower() == "negative" and has_recent_catalyst:
+        risk -= 5
+        penalties.append("Catalizador confirmado negativo para una estrategia larga.")
     if rsi is not None and rsi > 75:
         risk -= 2
         _append_unique(warnings, "RSI > 75: posible sobreextensión.")
@@ -226,6 +243,8 @@ def score_candidate(candidate: dict) -> dict:
         total = min(total, 70.0)
     if rvol is not None and has_recent_catalyst and rvol < 0.5:
         total = min(total + 4.0, 100.0)
+    if any(state in {"stale", "estimated"} for state in relevant_quality_states):
+        total = min(total, 75.0)
 
     return {
         "total_score": round(total, 2),

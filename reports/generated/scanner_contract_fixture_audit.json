@@ -1,0 +1,141 @@
+{
+  "schema_version": "1.0",
+  "run_id": "automated-acceptance-fixture",
+  "started_at": "2026-08-31T12:33:24+00:00",
+  "completed_at": "2026-08-31T12:33:24.856150+00:00",
+  "universe": {
+    "name": "Nasdaq-100 declared scanner universe",
+    "source": "automated_acceptance_fixture",
+    "symbol_count": 4,
+    "sha256": "83359886f57ecb62649d6ef752347c19fa3948a2465a46b748549126e435e773",
+    "symbols": [
+      "NASDAQ:NVDA",
+      "NASDAQ:MSFT",
+      "NASDAQ:AAPL",
+      "NASDAQ:AMZN"
+    ]
+  },
+  "candidate_count": 4,
+  "candidates": [
+    {
+      "ticker": "NVDA",
+      "score": 50.0,
+      "catalyst_score": 60.5,
+      "catalyst_classification": "MATERIAL_CATALYST",
+      "confirmed_catalyst": false,
+      "catalyst_validation_state": "supported_not_confirmed",
+      "quality_states": [
+        "live"
+      ],
+      "provenance": {
+        "price": {
+          "field": "price",
+          "source": "automated_acceptance_fixture",
+          "observed_at": "2026-08-31T12:32:54+00:00",
+          "received_at": "2026-08-31T12:33:24+00:00",
+          "age_seconds": 30.0,
+          "quality_state": "live",
+          "is_usable_for_live_claim": true,
+          "reasons": [
+            "within_live_freshness_window"
+          ]
+        }
+      },
+      "missing_fields": [],
+      "warnings": [],
+      "ranking_reasons": [
+        "single_recognized_source_for_primary_event",
+        "unvalidated_catalyst_gets_no_confirmed_ranking_credit"
+      ]
+    },
+    {
+      "ticker": "MSFT",
+      "score": 50.0,
+      "catalyst_score": 0.0,
+      "catalyst_classification": "NOISE",
+      "confirmed_catalyst": false,
+      "catalyst_validation_state": "unverified",
+      "quality_states": [
+        "delayed"
+      ],
+      "provenance": {
+        "price": {
+          "field": "price",
+          "source": "automated_acceptance_fixture",
+          "observed_at": "2026-08-31T12:23:24+00:00",
+          "received_at": "2026-08-31T12:33:24+00:00",
+          "age_seconds": 600.0,
+          "quality_state": "delayed",
+          "is_usable_for_live_claim": false,
+          "reasons": [
+            "outside_live_within_delayed_window"
+          ]
+        }
+      },
+      "missing_fields": [],
+      "warnings": [],
+      "ranking_reasons": []
+    },
+    {
+      "ticker": "AAPL",
+      "score": 50.0,
+      "catalyst_score": 0.0,
+      "catalyst_classification": "NOISE",
+      "confirmed_catalyst": false,
+      "catalyst_validation_state": "unverified",
+      "quality_states": [
+        "estimated"
+      ],
+      "provenance": {
+        "price": {
+          "field": "price",
+          "source": "automated_acceptance_fixture",
+          "observed_at": "2026-08-31T12:33:24+00:00",
+          "received_at": "2026-08-31T12:33:24+00:00",
+          "age_seconds": 0.0,
+          "quality_state": "estimated",
+          "is_usable_for_live_claim": false,
+          "reasons": [
+            "explicit_quality_hint:estimated"
+          ]
+        }
+      },
+      "missing_fields": [],
+      "warnings": [],
+      "ranking_reasons": []
+    },
+    {
+      "ticker": "AMZN",
+      "score": 50.0,
+      "catalyst_score": 0.0,
+      "catalyst_classification": "NOISE",
+      "confirmed_catalyst": false,
+      "catalyst_validation_state": "unverified",
+      "quality_states": [
+        "unavailable"
+      ],
+      "provenance": {
+        "price": {
+          "field": "price",
+          "source": "automated_acceptance_fixture",
+          "observed_at": null,
+          "received_at": "2026-08-31T12:33:24+00:00",
+          "age_seconds": null,
+          "quality_state": "unavailable",
+          "is_usable_for_live_claim": false,
+          "reasons": [
+            "value_missing"
+          ]
+        }
+      },
+      "missing_fields": [
+        "price"
+      ],
+      "warnings": [],
+      "ranking_reasons": []
+    }
+  ],
+  "global_warnings": [
+    "FIXTURE_ONLY: no contiene datos de mercado reales y no debe utilizarse para operar."
+  ]
+}

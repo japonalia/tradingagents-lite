@@ -1,7 +1,13 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
+from uuid import uuid4
+
+from src.audit.scanner_audit import build_scanner_audit
+from src.catalysts.premarket_engine import evaluate_premarket_catalysts
 from src.data_sources.catalysts import fetch_external_catalysts
 from src.data_sources.nasdaq100 import load_nasdaq100_symbols
+from src.data_quality.provenance import build_field_provenance
 from src.data_sources.tvremix_client import (
     fetch_earnings_calendar,
     fetch_intraday_ohlcv_levels,
@@ -40,9 +46,34 @@ def _dedup_messages(values: list[str] | None) -> list[str]:
     return out
 
 
-def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int = 10, technical_top_n: int = 25, intraday_top_n: int = 10, ohlcv_top_n: int = 5, ohlcv_interval: str = "5m", max_symbols: int | None = None, skip_news: bool = False, skip_earnings: bool = True, use_intraday: bool = True, use_ohlcv_levels: bool = True, use_external_catalysts: bool = False) -> dict:
+def _observation_timestamp(item: dict) -> object:
+    return _first_non_empty(item, ["timestamp", "datetime", "time", "date", "updated_at", "as_of"])
+
+
+def _quality_hint(item: dict) -> object:
+    return _first_non_empty(item, ["quality_state", "data_quality", "quality", "status"])
+
+
+def _rank_candidates(candidates: list[dict], score_field: str = "total_score") -> list[dict]:
+    def key(candidate: dict) -> tuple[float, str]:
+        try:
+            score = float(candidate.get(score_field, 0) or 0)
+        except (TypeError, ValueError):
+            score = 0.0
+        return (-score, str(candidate.get("ticker") or ""))
+
+    return sorted(candidates, key=key)
+
+
+def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int = 10, technical_top_n: int = 25, intraday_top_n: int = 10, ohlcv_top_n: int = 5, ohlcv_interval: str = "5m", max_symbols: int | None = None, skip_news: bool = False, skip_earnings: bool = True, use_intraday: bool = True, use_ohlcv_levels: bool = True, use_external_catalysts: bool = False, catalyst_scope: str = "universe") -> dict:
     if source.strip().lower() != "tvremix":
         raise ValueError("Por ahora scan-nasdaq100 solo soporta --source tvremix")
+    normalized_catalyst_scope = catalyst_scope.strip().lower()
+    if normalized_catalyst_scope not in {"universe", "top"}:
+        raise ValueError("catalyst_scope debe ser 'universe' o 'top'")
+
+    run_started_at = datetime.now(timezone.utc)
+    run_id = str(uuid4())
 
     symbols = load_nasdaq100_symbols()
     universe_symbols = symbols
@@ -120,6 +151,10 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
             "earnings_items": earnings_items,
             "catalyst_headlines": [],
             "catalyst_source_count": 0,
+            "catalyst_score": 0.0,
+            "catalyst_ranking_credit": 0.0,
+            "catalyst_classification": "NOISE",
+            "catalyst_validation_state": "unverified",
             "catalyst_warnings": [],
             "warnings": [],
             "technical_source": None,
@@ -128,12 +163,51 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
             "use_intraday": use_intraday,
             "intraday_expected": use_intraday,
         }
+
+        quote_observed = _observation_timestamp(quote)
+        quote_quality = _quality_hint(quote)
+        intraday_observed = _observation_timestamp(intraday_raw)
+        intraday_quality = _quality_hint(intraday_raw)
+        candidate["data_provenance"] = {}
+        for field in ("price", "change_percent", "volume"):
+            candidate["data_provenance"][field] = build_field_provenance(
+                field=field,
+                value=candidate.get(field),
+                source="tvremix:get_quotes_batch",
+                observed_at=quote_observed,
+                received_at=run_started_at,
+                quality_hint=quote_quality,
+            )
+        for field in ("intraday_close", "intraday_change", "intraday_volume", "rvol_10d", "vwap", "premarket_change", "premarket_gap"):
+            candidate["data_provenance"][field] = build_field_provenance(
+                field=field,
+                value=candidate.get(field),
+                source="tvremix:run_screener",
+                observed_at=intraday_observed,
+                received_at=run_started_at,
+                quality_hint=intraday_quality,
+            )
         if candidate.get("price") in (None, "") and candidate.get("intraday_close") not in (None, ""):
             candidate["price"] = candidate["intraday_close"]
         if candidate.get("volume") in (None, "") and candidate.get("intraday_volume") not in (None, ""):
             candidate["volume"] = candidate["intraday_volume"]
         if candidate.get("change_percent") in (None, "") and candidate.get("intraday_change") not in (None, ""):
             candidate["change_percent"] = candidate["intraday_change"]
+        fallback_fields = {
+            "price": candidate.get("price"),
+            "volume": candidate.get("volume"),
+            "change_percent": candidate.get("change_percent"),
+        }
+        for field, field_value in fallback_fields.items():
+            if candidate["data_provenance"][field]["quality_state"] == "unavailable" and field_value not in (None, ""):
+                candidate["data_provenance"][field] = build_field_provenance(
+                    field=field,
+                    value=field_value,
+                    source="tvremix:run_screener",
+                    observed_at=intraday_observed,
+                    received_at=run_started_at,
+                    quality_hint=intraday_quality,
+                )
 
         candidate_change_percent = candidate.get("intraday_change")
         if candidate_change_percent in (None, ""):
@@ -168,7 +242,7 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
         candidate["preliminary_score"] = candidate.get("total_score", 0)
         candidates.append(candidate)
 
-    ranked = sorted(candidates, key=lambda c: c.get("preliminary_score", 0), reverse=True)
+    ranked = _rank_candidates(candidates, "preliminary_score")
     if use_intraday:
         matched = int(intraday_diagnostics.get("screener_symbols_matched", 0))
         if matched < 5:
@@ -200,6 +274,29 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
                 candidate["premarket_high"] = candidate.get("premarket_high") or intraday_raw.get("premarket_high")
                 candidate["premarket_low"] = candidate.get("premarket_low") or intraday_raw.get("premarket_low")
                 candidate["gap"] = candidate.get("gap") or intraday_raw.get("gap")
+                fallback_observed = _observation_timestamp(intraday_raw)
+                fallback_quality = _quality_hint(intraday_raw)
+                fallback_keys = {
+                    "intraday_close": ("intraday_close", "close"),
+                    "intraday_change": ("intraday_change", "change"),
+                    "intraday_volume": ("intraday_volume", "volume"),
+                    "rvol_10d": ("rvol_10d", "relative_volume_10d_calc"),
+                    "vwap": ("vwap", "VWAP"),
+                    "premarket_change": ("premarket_change",),
+                    "premarket_gap": ("premarket_gap",),
+                }
+                for field, raw_keys in fallback_keys.items():
+                    fallback_value = _first_non_empty(intraday_raw, list(raw_keys))
+                    previous = candidate["data_provenance"].get(field, {})
+                    if fallback_value not in (None, "") and previous.get("quality_state") == "unavailable":
+                        candidate["data_provenance"][field] = build_field_provenance(
+                            field=field,
+                            value=fallback_value,
+                            source="tvremix:get_symbol_data",
+                            observed_at=fallback_observed,
+                            received_at=run_started_at,
+                            quality_hint=fallback_quality,
+                        )
 
     ohlcv_levels_map: dict[str, dict] = {}
     ohlcv_level_symbols: list[str] = []
@@ -212,7 +309,7 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
     if not use_ohlcv_levels:
         global_warnings.append("niveles intradía OHLCV omitidos por --skip-ohlcv-levels")
 
-    ranked = sorted(candidates, key=lambda c: c.get("total_score", 0), reverse=True)
+    ranked = _rank_candidates(candidates)
 
     technical_n = max(1, int(technical_top_n))
     technical_symbols = [c["ticker"] for c in ranked[:technical_n]]
@@ -302,6 +399,19 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
                 candidate["change_percent"] = tech_data.get("technical_change")
             if candidate.get("technical_rating") not in (None, "") or candidate.get("rsi") not in (None, ""):
                 candidate["technical_source"] = "batch"
+            technical_observed = _observation_timestamp(tech_data)
+            technical_quality = _quality_hint(tech_data)
+            for field in ("technical_rating", "rsi", "macd", "adx", "atr"):
+                candidate["data_provenance"][field] = build_field_provenance(
+                    field=field,
+                    value=candidate.get(field),
+                    source="tvremix:analyze_multi_timeframe_batch",
+                    observed_at=technical_observed,
+                    received_at=run_started_at,
+                    quality_hint=technical_quality,
+                    live_max_age_seconds=86_400,
+                    delayed_max_age_seconds=172_800,
+                )
         if not candidate.get("technical_rating") and not candidate.get("rsi"):
             candidate["warnings"].append("technicals no disponibles en analyze_multi_timeframe_batch/get_technicals")
         elif candidate.get("technical_source") is None:
@@ -311,11 +421,16 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
         candidate["warnings"] = _dedup_messages(candidate.get("warnings"))
         candidate["reasons"] = _dedup_messages(candidate.get("reasons"))
 
-    ranked_pre_catalyst = sorted(candidates, key=lambda c: c.get("total_score", 0), reverse=True)
+    ranked_pre_catalyst = _rank_candidates(candidates)
     top_n = max(0, int(catalyst_top_n))
     shown_limit = max(1, int(limit))
     ranked_for_catalysts = ranked_pre_catalyst[:shown_limit]
-    catalyst_symbols = [c["ticker"] for c in ranked_for_catalysts[:top_n]]
+    if top_n <= 0:
+        catalyst_symbols = []
+    elif normalized_catalyst_scope == "universe":
+        catalyst_symbols = [c["ticker"] for c in candidates]
+    else:
+        catalyst_symbols = [c["ticker"] for c in ranked_for_catalysts[:top_n]]
     catalyst_symbol_keys = {x.upper() for x in catalyst_symbols}
 
     news_map: dict = {}
@@ -385,18 +500,31 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
             if item.get(k) not in (None, "")
         }
         earnings_nearby = bool(earnings_items)
-        has_recent_catalyst = bool(latest_titles or earnings_nearby)
-        if latest_titles and earnings_nearby:
-            catalyst_summary = f"{len(latest_titles)} titulares recientes + earnings cercano"
-        elif latest_titles:
-            catalyst_summary = f"{len(latest_titles)} titulares recientes"
-        elif earnings_nearby:
-            catalyst_summary = "Earnings cercano"
-        else:
-            catalyst_summary = "Sin catalizador confirmado"
 
         external_info = external_catalysts_map.get(key, {}) if isinstance(external_catalysts_map, dict) else {}
         candidate["external_catalyst"] = external_info
+
+        catalyst_evaluation = evaluate_premarket_catalysts(
+            key,
+            news_items=news_items,
+            earnings_items=earnings_items,
+            market_context={
+                "premarket_change": candidate.get("premarket_change"),
+                "premarket_gap": candidate.get("premarket_gap"),
+                "rvol_10d": candidate.get("rvol_10d"),
+            },
+            now=run_started_at,
+        )
+        has_recent_catalyst = bool(catalyst_evaluation.get("confirmed_catalyst"))
+        if has_recent_catalyst:
+            catalyst_summary = (
+                f"{catalyst_evaluation.get('catalyst_classification')} "
+                f"({catalyst_evaluation.get('primary_event_type')}, score={catalyst_evaluation.get('catalyst_score')})"
+            )
+        elif latest_titles or earnings_nearby:
+            catalyst_summary = "Evento detectado, pendiente de validación autoritativa"
+        else:
+            catalyst_summary = "Sin catalizador confirmado"
 
         candidate["latest_news_titles"] = latest_titles
         candidate["news_count"] = len(latest_titles)
@@ -404,11 +532,29 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
         candidate["earnings_nearby"] = earnings_nearby
         candidate["has_recent_catalyst"] = has_recent_catalyst
         candidate["catalyst_summary"] = catalyst_summary
-        candidate["catalyst_headlines"] = latest_titles
-        candidate["catalyst_source_count"] = len(source_values)
+        candidate["catalyst_headlines"] = catalyst_evaluation.get("headlines") or latest_titles
+        candidate["catalyst_source_count"] = catalyst_evaluation.get("source_count", len(source_values))
+        candidate["catalyst_score"] = catalyst_evaluation.get("catalyst_score", 0.0)
+        candidate["catalyst_ranking_credit"] = catalyst_evaluation.get("catalyst_ranking_credit", 0.0)
+        candidate["catalyst_classification"] = catalyst_evaluation.get("catalyst_classification", "NOISE")
+        candidate["catalyst_score_breakdown"] = catalyst_evaluation.get("catalyst_score_breakdown", {})
+        candidate["catalyst_validation_state"] = catalyst_evaluation.get("validation_state", "unverified")
+        candidate["catalyst_validation_reasons"] = catalyst_evaluation.get("validation_reasons", [])
+        candidate["catalyst_direction"] = catalyst_evaluation.get("direction", "neutral")
+        candidate["catalyst_events"] = catalyst_evaluation.get("events", [])
+        catalyst_events = catalyst_evaluation.get("events") or []
+        catalyst_observed_at = catalyst_events[0].get("published_at") if catalyst_events else None
+        candidate["data_provenance"]["catalyst"] = build_field_provenance(
+            field="catalyst",
+            value=candidate.get("catalyst_score") if (latest_titles or earnings_nearby) else None,
+            source="tvremix:get_news/get_earnings_calendar",
+            observed_at=catalyst_observed_at,
+            received_at=run_started_at,
+            quality_hint=None,
+        )
         if has_recent_catalyst:
             candidate["catalyst_origin"] = "tvremix_get_news"
-        elif external_info.get("has_recent_catalyst"):
+        elif external_info.get("has_recent_catalyst") and str(external_info.get("validation_state", "")).startswith("confirmed_"):
             candidate["has_recent_catalyst"] = True
             candidate["catalyst_summary"] = external_info.get("catalyst_summary") or candidate["catalyst_summary"]
             candidate["catalyst_headlines"] = external_info.get("catalyst_headlines") or []
@@ -421,7 +567,7 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
         candidate["reasons"] = _dedup_messages(candidate.get("reasons"))
 
     if use_ohlcv_levels and max(0, int(ohlcv_top_n)) > 0:
-        ranked_for_ohlcv = sorted(candidates, key=lambda c: c.get("total_score", 0), reverse=True)
+        ranked_for_ohlcv = _rank_candidates(candidates)
         ohlcv_level_symbols = [c["ticker"] for c in ranked_for_ohlcv[: max(0, int(ohlcv_top_n))]]
         try:
             ohlcv_levels_map, ohlcv_warnings, ohlcv_level_diag = fetch_intraday_ohlcv_levels(
@@ -443,6 +589,15 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
                 candidate["reasons"] = _dedup_messages(candidate.get("reasons"))
                 continue
             candidate.update(levels)
+            levels_observed = _observation_timestamp(levels)
+            for field in ("intraday_high", "intraday_low", "last_close_intraday", "approx_intraday_vwap_from_bars"):
+                candidate["data_provenance"][field] = build_field_provenance(
+                    field=field,
+                    value=candidate.get(field),
+                    source=f"tvremix:get_ohlcv:{ohlcv_interval}",
+                    observed_at=levels_observed,
+                    received_at=run_started_at,
+                )
             candidate.update(score_candidate(candidate))
             candidate["warnings"] = _dedup_messages(candidate.get("warnings"))
             candidate["reasons"] = _dedup_messages(candidate.get("reasons"))
@@ -484,7 +639,7 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
         seen.add(key)
         deduped_global_warnings.append(key)
 
-    ranked_final = sorted(candidates, key=lambda c: c.get("total_score", 0), reverse=True)
+    ranked_final = _rank_candidates(candidates)
 
     technical_batch_available = sum(
         1 for c in candidates if c.get("ticker", "").upper() in technical_symbol_keys and (c.get("technical_rating") not in (None, "") or c.get("rsi") not in (None, ""))
@@ -552,7 +707,9 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
             f"OHLCV calculado para {ohlcv_intraday_requested} candidatos; {ohlcv_visible_in_top} visible en Top mostrado tras reordenación."
         )
 
-    return {
+    result = {
+        "run_id": run_id,
+        "run_started_at": run_started_at.isoformat(),
         "symbols_in_universe": len(symbols),
         "candidates_evaluated": len(candidates),
         "candidates_shown": min(shown_limit, len(ranked_final)),
@@ -580,9 +737,20 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
         "technicals_fallback_individual": technical_fallback_count,
         "technicals_not_available": technical_unavailable,
         "catalysts_queried": len(catalyst_symbols),
+        "catalyst_scope": normalized_catalyst_scope,
         "scanner_mode": scanner_mode,
         "candidates": ranked_final[:shown_limit],
         "external_catalysts_enabled": bool(use_external_catalysts),
         "external_catalysts_configured": bool(use_external_catalysts and not external_catalysts_not_configured),
         "global_warnings": deduped_global_warnings,
     }
+    result["audit"] = build_scanner_audit(
+        run_id=run_id,
+        started_at=run_started_at,
+        completed_at=datetime.now(timezone.utc),
+        universe_symbols=symbols,
+        universe_source="config/nasdaq100_symbols.yaml",
+        candidates=candidates,
+        global_warnings=deduped_global_warnings,
+    )
+    return result
