@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+from datetime import datetime, timezone
 from unittest.mock import patch
 
 from src.scanner.nasdaq100_scanner import scan_nasdaq100
@@ -64,6 +65,7 @@ class ScannerIntegrationTests(unittest.TestCase):
             skip_earnings=True,
             use_intraday=False,
             use_ohlcv_levels=False,
+            as_of=datetime(2026, 8, 31, 13, 0, tzinfo=timezone.utc),
         )
 
         requested_symbols = mock_news.call_args.args[0]

@@ -36,6 +36,10 @@ def build_scanner_audit(
             {
                 "ticker": candidate.get("ticker"),
                 "score": candidate.get("total_score"),
+                "preliminary_score": candidate.get("preliminary_score"),
+                "final_timestamped_score": candidate.get("final_timestamped_score"),
+                "timestamp_verified": bool(candidate.get("timestamp_verified")),
+                "operational_eligibility": candidate.get("operational_eligibility", "INCOMPLETE_DATA"),
                 "catalyst_score": candidate.get("catalyst_score", 0),
                 "catalyst_classification": candidate.get("catalyst_classification", "NOISE"),
                 "confirmed_catalyst": bool(candidate.get("has_recent_catalyst")),

@@ -10,7 +10,7 @@ from src.data_sources.nasdaq100 import load_nasdaq100_symbols
 from src.data_quality.provenance import build_field_provenance
 from src.data_sources.tvremix_client import (
     fetch_earnings_calendar,
-    fetch_intraday_ohlcv_levels,
+    fetch_verified_intraday_deep_dive,
     fetch_intraday_screener_fields,
     fetch_intraday_symbol_data_batch,
     fetch_multi_timeframe_technicals_batch,
@@ -65,14 +65,16 @@ def _rank_candidates(candidates: list[dict], score_field: str = "total_score") -
     return sorted(candidates, key=key)
 
 
-def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int = 10, technical_top_n: int = 25, intraday_top_n: int = 10, ohlcv_top_n: int = 5, ohlcv_interval: str = "5m", max_symbols: int | None = None, skip_news: bool = False, skip_earnings: bool = True, use_intraday: bool = True, use_ohlcv_levels: bool = True, use_external_catalysts: bool = False, catalyst_scope: str = "universe") -> dict:
+def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int = 10, technical_top_n: int = 25, intraday_top_n: int = 10, ohlcv_top_n: int = 5, ohlcv_interval: str = "5m", max_symbols: int | None = None, skip_news: bool = False, skip_earnings: bool = True, use_intraday: bool = True, use_ohlcv_levels: bool = True, use_external_catalysts: bool = False, catalyst_scope: str = "universe", as_of: datetime | None = None) -> dict:
     if source.strip().lower() != "tvremix":
         raise ValueError("Por ahora scan-nasdaq100 solo soporta --source tvremix")
     normalized_catalyst_scope = catalyst_scope.strip().lower()
     if normalized_catalyst_scope not in {"universe", "top"}:
         raise ValueError("catalyst_scope debe ser 'universe' o 'top'")
 
-    run_started_at = datetime.now(timezone.utc)
+    # Use one clock for the whole run. Historical reprocessing and tests can
+    # inject ``as_of`` so freshness never changes merely because time passed.
+    run_started_at = (as_of or datetime.now(timezone.utc)).astimezone(timezone.utc)
     run_id = str(uuid4())
 
     symbols = load_nasdaq100_symbols()
@@ -122,6 +124,8 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
         candidate = {
             "ticker": symbol,
             "price": quote.get("price") or quote.get("last_price") or quote.get("close"),
+            "raw_quote_price": quote.get("price") or quote.get("last_price") or quote.get("close"),
+            "raw_quote_quality": "timestamp_unavailable" if _observation_timestamp(quote) is None else "timestamp_present",
             "change_percent": quote.get("change_percent"),
             "volume": quote.get("volume"),
             "market_cap": quote.get("market_cap") or intraday_raw.get("market_cap_basic"),
@@ -162,6 +166,13 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
             "relative_strength_vs_qqq": None,
             "use_intraday": use_intraday,
             "intraday_expected": use_intraday,
+            "discovery_only": True,
+            "timestamp_verified": False,
+            "catalyst_validated": False,
+            "vwap_verified": False,
+            "rvol_verified": False,
+            "visual_validation_required": True,
+            "operational_eligibility": "INCOMPLETE_DATA",
         }
 
         quote_observed = _observation_timestamp(quote)
@@ -531,6 +542,7 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
         candidate["earnings_items"] = earnings_items
         candidate["earnings_nearby"] = earnings_nearby
         candidate["has_recent_catalyst"] = has_recent_catalyst
+        candidate["catalyst_validated"] = has_recent_catalyst
         candidate["catalyst_summary"] = catalyst_summary
         candidate["catalyst_headlines"] = catalyst_evaluation.get("headlines") or latest_titles
         candidate["catalyst_source_count"] = catalyst_evaluation.get("source_count", len(source_values))
@@ -570,8 +582,8 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
         ranked_for_ohlcv = _rank_candidates(candidates)
         ohlcv_level_symbols = [c["ticker"] for c in ranked_for_ohlcv[: max(0, int(ohlcv_top_n))]]
         try:
-            ohlcv_levels_map, ohlcv_warnings, ohlcv_level_diag = fetch_intraday_ohlcv_levels(
-                ohlcv_level_symbols, interval=ohlcv_interval, count=100
+            ohlcv_levels_map, ohlcv_warnings, ohlcv_level_diag = fetch_verified_intraday_deep_dive(
+                ohlcv_level_symbols, as_of=run_started_at, interval=ohlcv_interval, count=300
             )
             global_warnings.extend(ohlcv_warnings)
         except Exception as exc:
@@ -588,9 +600,24 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
                 candidate["warnings"] = _dedup_messages(candidate.get("warnings"))
                 candidate["reasons"] = _dedup_messages(candidate.get("reasons"))
                 continue
+            candidate["provider_vwap_raw"] = candidate.get("vwap")
+            candidate["provider_rvol_raw"] = candidate.get("rvol_10d")
             candidate.update(levels)
-            levels_observed = _observation_timestamp(levels)
-            for field in ("intraday_high", "intraday_low", "last_close_intraday", "approx_intraday_vwap_from_bars"):
+            candidate["verified_intraday_price"] = levels.get("last_completed_bar_close")
+            candidate["verified_intraday_quality"] = levels.get("quality")
+            candidate["intraday_close"] = levels.get("last_completed_bar_close")
+            candidate["change_percent"] = levels.get("session_change_percent")
+            candidate["relative_strength_vs_qqq"] = levels.get("relative_strength_vs_qqq")
+            candidate["vwap"] = None
+            candidate["rvol_10d"] = None
+            candidate["timestamp_verified"] = True
+            candidate["discovery_only"] = False
+            candidate["vwap_verified"] = False
+            candidate["rvol_verified"] = False
+            candidate["visual_validation_required"] = True
+            candidate["operational_eligibility"] = "INCOMPLETE_DATA"
+            levels_observed = levels.get("observed_at")
+            for field in ("verified_intraday_price", "session_high", "session_low", "session_volume", "relative_strength_vs_qqq"):
                 candidate["data_provenance"][field] = build_field_provenance(
                     field=field,
                     value=candidate.get(field),
@@ -599,6 +626,7 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
                     received_at=run_started_at,
                 )
             candidate.update(score_candidate(candidate))
+            candidate["final_timestamped_score"] = candidate.get("total_score")
             candidate["warnings"] = _dedup_messages(candidate.get("warnings"))
             candidate["reasons"] = _dedup_messages(candidate.get("reasons"))
 
@@ -639,7 +667,11 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
         seen.add(key)
         deduped_global_warnings.append(key)
 
-    ranked_final = _rank_candidates(candidates)
+    verified_candidates = [candidate for candidate in candidates if candidate.get("timestamp_verified")]
+    discovery_candidates = [candidate for candidate in candidates if not candidate.get("timestamp_verified")]
+    ranked_final = _rank_candidates(verified_candidates, "final_timestamped_score") + _rank_candidates(
+        discovery_candidates, "preliminary_score"
+    )
 
     technical_batch_available = sum(
         1 for c in candidates if c.get("ticker", "").upper() in technical_symbol_keys and (c.get("technical_rating") not in (None, "") or c.get("rsi") not in (None, ""))
@@ -739,6 +771,13 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
         "catalysts_queried": len(catalyst_symbols),
         "catalyst_scope": normalized_catalyst_scope,
         "scanner_mode": scanner_mode,
+        "phases": {
+            "discovery_preliminary": {
+                "symbols": len(candidates),
+                "can_produce_executable_candidate": False,
+            },
+            "timestamp_verified_deep_dive": ohlcv_level_diag,
+        },
         "candidates": ranked_final[:shown_limit],
         "external_catalysts_enabled": bool(use_external_catalysts),
         "external_catalysts_configured": bool(use_external_catalysts and not external_catalysts_not_configured),
@@ -747,7 +786,7 @@ def scan_nasdaq100(source: str = "tvremix", limit: int = 10, catalyst_top_n: int
     result["audit"] = build_scanner_audit(
         run_id=run_id,
         started_at=run_started_at,
-        completed_at=datetime.now(timezone.utc),
+        completed_at=run_started_at if as_of is not None else datetime.now(timezone.utc),
         universe_symbols=symbols,
         universe_source="config/nasdaq100_symbols.yaml",
         candidates=candidates,

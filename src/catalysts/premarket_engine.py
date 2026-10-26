@@ -41,6 +41,7 @@ AUTHORITATIVE_SOURCE_MARKERS = (
 )
 RECOGNIZED_SOURCE_MARKERS = (
     "reuters",
+    "dow jones",
     "bloomberg",
     "associated press",
     "wall street journal",
@@ -66,7 +67,9 @@ def _source_identity(item: dict[str, Any]) -> str:
     source = str(_first(item, ("provider", "source", "publisher", "channel")) or "").strip()
     url = str(item.get("url") or "").strip()
     domain = urlparse(url).netloc.lower().removeprefix("www.") if url else ""
-    return domain or source.lower() or "unknown"
+    # Editorial attribution is stronger than the wrapper/hosting domain. This
+    # preserves Reuters/Dow Jones identity when hosted by TradingView.
+    return source.lower() or domain or "unknown"
 
 
 def _is_authoritative(item: dict[str, Any]) -> bool:

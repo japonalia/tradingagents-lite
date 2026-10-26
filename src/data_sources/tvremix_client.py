@@ -9,6 +9,7 @@ import requests
 from dotenv import load_dotenv
 
 from src.data_sources.base import MarketDataResult
+from src.indicators.ohlcv_intraday import derive_intraday_metrics, relative_strength_from_aligned_bars
 
 DEFAULT_TVREMIX_MCP_URL = "https://tvremix.xyz/api/mcp/v1"
 MISSING_CONFIG_MESSAGE = (
@@ -993,6 +994,53 @@ def fetch_intraday_ohlcv_levels(
         "ohlcv_intraday_requested": len(normalized),
         "ohlcv_intraday_available": available,
         "ohlcv_vwap_available": vwap_available,
+    }
+    return records, warnings, diagnostics
+
+
+def fetch_verified_intraday_deep_dive(
+    symbols: list[str], *, as_of, interval: str = "5m", count: int = 300
+) -> tuple[dict[str, dict[str, Any]], list[str], dict[str, Any]]:
+    """Fetch timestamped OHLCV, loading QQQ once and reusing it for all symbols."""
+    normalized = [normalize_tv_symbol(symbol) for symbol in symbols if str(symbol).strip()]
+    warnings: list[str] = []
+    records: dict[str, dict[str, Any]] = {}
+    calls: list[str] = []
+    try:
+        qqq_bars, qqq_warnings = fetch_ohlcv("NASDAQ:QQQ", interval=interval, count=count)
+        calls.append("NASDAQ:QQQ")
+        warnings.extend([f"NASDAQ:QQQ: {warning}" for warning in qqq_warnings])
+    except Exception as exc:
+        qqq_bars = pd.DataFrame()
+        warnings.append(f"NASDAQ:QQQ OHLCV no disponible: {exc}")
+
+    for tv_symbol in normalized:
+        short = tv_symbol.split(":", 1)[-1].upper()
+        try:
+            bars, bar_warnings = fetch_ohlcv(tv_symbol, interval=interval, count=count)
+            calls.append(tv_symbol)
+            warnings.extend([f"{tv_symbol}: {warning}" for warning in bar_warnings])
+        except Exception as exc:
+            warnings.append(f"{tv_symbol} OHLCV no disponible: {exc}")
+            if "429" in str(exc) or "Too Many Requests" in str(exc):
+                break
+            continue
+        metrics = derive_intraday_metrics(bars, as_of=as_of, interval=interval)
+        if metrics.get("quality") == "unavailable":
+            warnings.append(f"{tv_symbol}: {metrics.get('reason')}")
+            continue
+        relative = relative_strength_from_aligned_bars(bars, qqq_bars, as_of=as_of, interval=interval)
+        metrics["relative_strength_alignment"] = relative
+        metrics["relative_strength_vs_qqq"] = relative.get("relative_strength_vs_qqq")
+        records[tv_symbol] = metrics
+        records[short] = metrics
+
+    diagnostics = {
+        "phase": "timestamp_verified_deep_dive",
+        "qqq_calls": calls.count("NASDAQ:QQQ"),
+        "ohlcv_calls": calls,
+        "symbols_requested": len(normalized),
+        "symbols_verified": len({key for key in records if key.startswith("NASDAQ:")}),
     }
     return records, warnings, diagnostics
 

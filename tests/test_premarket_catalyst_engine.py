@@ -47,6 +47,35 @@ class PremarketCatalystEngineTests(unittest.TestCase):
         self.assertTrue(result["confirmed_catalyst"])
         self.assertEqual(result["validation_state"], "confirmed_corroborated")
 
+    def test_editorial_source_wins_over_wrapper_domain(self) -> None:
+        result = evaluate_premarket_catalysts(
+            "NVDA",
+            [{"title": self.headline, "source": "Reuters", "url": "https://www.tradingview.com/news/example", "published": "2026-08-31T12:00:00Z"}],
+            now=self.now,
+        )
+        self.assertEqual(result["events"][0]["source"], "reuters")
+        self.assertEqual(result["validation_state"], "supported_not_confirmed")
+
+    def test_freshness_boundary_just_before_and_after_168_hours(self) -> None:
+        before = evaluate_premarket_catalysts(
+            "NVDA",
+            [{"title": self.headline, "url": "https://sec.gov/filing", "published": "2026-08-24T13:01:00Z"}],
+            now=self.now,
+        )
+        after = evaluate_premarket_catalysts(
+            "NVDA",
+            [{"title": self.headline, "url": "https://sec.gov/filing", "published": "2026-08-24T12:59:00Z"}],
+            now=self.now,
+        )
+        self.assertTrue(before["confirmed_catalyst"])
+        self.assertFalse(after["confirmed_catalyst"])
+
+    def test_ohlcv_vwap_proxy_never_changes_score(self) -> None:
+        candidate = {"price": 101, "intraday_close": 101, "change_percent": 1, "volume": 1000, "missing_fields": [], "warnings": []}
+        baseline = score_candidate(candidate)
+        with_proxy = score_candidate({**candidate, "last_close_intraday": 101, "approx_intraday_vwap_from_bars": 99})
+        self.assertEqual(baseline["total_score"], with_proxy["total_score"])
+
     def test_different_event_types_do_not_cross_confirm(self) -> None:
         result = evaluate_premarket_catalysts(
             "NVDA",

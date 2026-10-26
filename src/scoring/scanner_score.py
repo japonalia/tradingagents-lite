@@ -68,7 +68,6 @@ def score_candidate(candidate: dict) -> dict:
     if intraday_price is None:
         intraday_price = _to_float(candidate.get("price"))
     last_close_intraday = _to_float(candidate.get("last_close_intraday"))
-    bars_vwap = _to_float(candidate.get("approx_intraday_vwap_from_bars"))
     gap = _to_float(candidate.get("gap"))
     premarket_gap = _to_float(candidate.get("premarket_gap"))
     distance_to_vwap_pct = _to_float(candidate.get("distance_to_vwap_pct"))
@@ -102,12 +101,8 @@ def score_candidate(candidate: dict) -> dict:
     if candidate.get("near_intraday_low") is True:
         intraday -= 1.5
         penalties.append("Cerca del mínimo intradía.")
-    if last_close_intraday is not None and bars_vwap is not None:
-        if last_close_intraday > bars_vwap:
-            intraday += 1.0
-        elif last_close_intraday < bars_vwap:
-            intraday -= 1.0
-            penalties.append("Último cierre intradía bajo VWAP de barras.")
+    # An OHLCV typical-price proxy is not trade-level/provider VWAP and must
+    # never receive ranking credit or a ranking penalty.
 
     if cp is not None and rvol is not None:
         if abs(cp) >= 3.0 and rvol < 0.75:
